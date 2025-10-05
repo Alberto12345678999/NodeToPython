@@ -13,18 +13,16 @@ if "bpy" in locals():
     importlib.reload(compositor)
     importlib.reload(geometry)
     importlib.reload(shader)
-    importlib.reload(ntp_menu)
     importlib.reload(ntp_options)
 else:
     from . import compositor
     from . import geometry
     from . import shader
-    from . import ntp_menu
     from . import ntp_options
 
 import bpy
 
-modules = [ntp_menu, ntp_options]
+modules = [ntp_options]
 for parent_module in [compositor, geometry, shader]:
     if hasattr(parent_module, "modules"):
         modules += parent_module.modules
