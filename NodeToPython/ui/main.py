@@ -1,5 +1,9 @@
 import bpy
 
+from ..export_operator import NTP_OT_Export, NodeGroupGatherer
+
+import pathlib
+
 class NTP_PT_Main(bpy.types.Panel):
     bl_idname = "NTP_PT_main"
     bl_label = "Node To Python"
@@ -18,8 +22,42 @@ class NTP_PT_Main(bpy.types.Panel):
     def draw_header(self, context):
         layout = self.layout
 
-    def draw(self, context):
+    def draw(self, context: bpy.types.Context):
         layout = self.layout
+        col = layout.column(align=True)
+        row = col.row()
+
+        ntp_options = context.scene.ntp_options
+        location = ""
+        export_icon = ''
+        if ntp_options.mode == 'SCRIPT':
+            location = "clipboard"
+            export_icon = 'COPYDOWN'
+        elif ntp_options.mode == 'ADDON':
+            location = pathlib.PurePath(ntp_options.dir_path).name
+            export_icon = 'CONSOLE'
+
+        gatherer = NodeGroupGatherer()
+        gatherer.gather_node_groups(context)
+        num_node_groups = gatherer.get_number_node_groups()
+
+        if num_node_groups == 1:
+            node_group = gatherer.get_single_node_group().name
+        else:
+            node_group = f"{num_node_groups} node groups"
+
+        export_text = f"Export {node_group} to {location}"
+
+        if num_node_groups == 0:
+            export_text = f"0 node groups selected!"
+            export_icon = 'WARNING_LARGE'
+
+        export_button = row.operator(
+            NTP_OT_Export.bl_idname, 
+            text=export_text, 
+            icon=export_icon
+        )
+        row.enabled = num_node_groups > 0
 
 classes: list[type] = [
     NTP_PT_Main
