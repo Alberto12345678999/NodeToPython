@@ -16,8 +16,8 @@ NODE = "node"
 
 COMP_OP_RESERVED_NAMES = {SCENE, BASE_NAME, END_NAME, NODE} 
 
-class NTPCompositorOperator(NTP_Operator):
-    bl_idname = "node.ntp_compositor"
+class NTP_OT_Compositor(NTP_Operator):
+    bl_idname = "ntp.compositor"
     bl_label =  "Compositor to Python"
     bl_options = {'REGISTER', 'UNDO'}
     
@@ -281,3 +281,7 @@ class NTPCompositorOperator(NTP_Operator):
         self._report_finished("compositor nodes")
 
         return {'FINISHED'}
+    
+classes: list[type] = [
+    NTP_OT_Compositor
+]

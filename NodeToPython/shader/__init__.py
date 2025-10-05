@@ -7,3 +7,8 @@ else:
     from . import ui
 
 import bpy
+
+modules = [
+    operator
+]
+modules += ui.modules
