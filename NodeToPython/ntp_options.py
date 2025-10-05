@@ -162,60 +162,7 @@ class NTP_PG_Options(bpy.types.PropertyGroup):
         default = ""
     )
 
-class NTP_PT_Options(bpy.types.Panel):
-    bl_label = "Options"
-    bl_idname = "NODE_PT_ntp_options"
-    bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'UI'
-    bl_context = ''
-    bl_category = "NodeToPython"
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    @classmethod
-    def poll(cls, context):
-        return True
-    def draw(self, context):
-        layout = self.layout
-        layout.operator_context = 'INVOKE_DEFAULT'
-        ntp_options = context.scene.ntp_options
-
-        option_list = [
-            "mode",
-            "set_group_defaults",
-            "set_node_sizes", 
-            "indentation_type"
-        ]
-        if bpy.app.version >= (3, 4, 0):
-            option_list.append("set_unavailable_defaults")
-        
-        if ntp_options.mode == 'SCRIPT':
-            script_options = [
-                "include_imports"
-            ]
-            option_list += script_options
-        elif ntp_options.mode == 'ADDON':
-            addon_options = [
-                "dir_path",
-                "name_override",
-                "description",
-                "author_name",
-                "version",
-                "location",
-                "menu_id",
-                "license",
-                "should_create_license",
-                "category"
-            ]
-            option_list += addon_options
-            if ntp_options.category == 'Custom':
-                option_list.append("custom_category")
-
-        for option in option_list:
-            layout.prop(ntp_options, option)
 
 classes = [
-    NTP_PG_Options,
-    NTP_PT_Options
+    NTP_PG_Options
 ]
