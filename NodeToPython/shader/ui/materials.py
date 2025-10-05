@@ -95,7 +95,8 @@ class NTP_PT_Material(bpy.types.Panel):
         row.template_list(
             NTP_UL_Material.bl_idname, "", 
             context.scene, "ntp_material_slots", 
-            context.scene, "ntp_material_slots_index"
+            context.scene, "ntp_material_slots_index",
+            rows=1
         )
 
         col = row.column(align=True)

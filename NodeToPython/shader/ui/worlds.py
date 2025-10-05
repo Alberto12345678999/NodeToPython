@@ -95,7 +95,8 @@ class NTP_PT_World(bpy.types.Panel):
         row.template_list(
             NTP_UL_World.bl_idname, "", 
             context.scene, "ntp_world_slots", 
-            context.scene, "ntp_world_slots_index"
+            context.scene, "ntp_world_slots_index",
+            rows=1
         )
 
         col = row.column(align=True)

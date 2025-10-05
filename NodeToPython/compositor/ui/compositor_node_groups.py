@@ -103,7 +103,8 @@ class NTP_PT_CompositorNodeGroup(bpy.types.Panel):
         row.template_list(
             NTP_UL_CompositorNodeGroup.bl_idname, "", 
             context.scene, "ntp_compositor_node_group_slots", 
-            context.scene, "ntp_compositor_node_group_slots_index"
+            context.scene, "ntp_compositor_node_group_slots_index",
+            rows=1
         )
 
         col = row.column(align=True)

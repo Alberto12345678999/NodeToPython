@@ -95,7 +95,8 @@ class NTP_PT_Light(bpy.types.Panel):
         row.template_list(
             NTP_UL_Light.bl_idname, "", 
             context.scene, "ntp_light_slots", 
-            context.scene, "ntp_light_slots_index"
+            context.scene, "ntp_light_slots_index",
+            rows=1
         )
 
         col = row.column(align=True)
