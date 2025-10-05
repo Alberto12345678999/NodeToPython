@@ -190,3 +190,7 @@ class NTP_OT_Shader(NTP_Operator):
         self._report_finished("material")
 
         return {'FINISHED'}
+    
+classes = [
+    NTP_OT_Shader
+]

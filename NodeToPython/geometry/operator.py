@@ -94,12 +94,14 @@ class NTP_OT_GeometryNodes(NTP_Operator):
             if is_tool:
                 self._write(f"{nt_var}.is_tool = True")
 
-                tool_flags =  ["is_mode_object",
-                               "is_mode_edit", 
-                               "is_mode_sculpt",
-                               "is_type_curve",
-                               "is_type_mesh",
-                               "is_type_point_cloud"]
+                tool_flags =  [
+                    "is_mode_object",
+                    "is_mode_edit", 
+                    "is_mode_sculpt",
+                    "is_type_curve",
+                    "is_type_mesh",
+                    "is_type_point_cloud"
+                ]
             
                 for flag in tool_flags:
                     if hasattr(node_tree, flag) is True:
@@ -221,3 +223,7 @@ class NTP_OT_GeometryNodes(NTP_Operator):
         self._report_finished("geometry node group")
 
         return {'FINISHED'}
+
+classes = [
+    NTP_OT_GeometryNodes
+]

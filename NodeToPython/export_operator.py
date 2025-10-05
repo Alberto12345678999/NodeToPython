@@ -78,20 +78,42 @@ class NodeGroupGatherer:
         if self.get_number_node_groups() != 1:
             raise ValueError("Expected just one node group")
         
-        for lst in self.node_groups.values():
+        for group_type, lst in self.node_groups.items():
             if len(lst) == 1:
-                return lst[0]
+                return group_type, lst[0]
             
         raise AssertionError("Expected this to be unreachable")
-
 
 class NTP_OT_Export(bpy.types.Operator):
     bl_idname = "ntp.export"
     bl_label = "Export"
+    bl_options = {'REGISTER', 'UNDO'}
 
-    
-    def execute(self, context):
-        print("Hello world!")
+    def execute(self, context: bpy.types.Context):
+        gatherer = NodeGroupGatherer()
+        gatherer.gather_node_groups(context)
+
+        if gatherer.get_number_node_groups() != 1:
+            self.report({'ERROR'}, "Can only export one node group currently")
+            return {'CANCELLED'}
+        
+        group_type, obj = gatherer.get_single_node_group()
+
+        if group_type == NodeGroupType.COMPOSITOR_NODE_GROUP:
+            bpy.ops.ntp.compositor(compositor_name=obj.name, is_scene=False)
+        elif group_type == NodeGroupType.SCENE:
+            bpy.ops.ntp.compositor(compositor_name=obj.name, is_scene=True)
+        elif group_type == NodeGroupType.GEOMETRY_NODE_GROUP:
+            bpy.ops.ntp.geometry_nodes(geo_nodes_group_name=obj.name)
+        elif group_type == NodeGroupType.LIGHT:
+            pass
+        elif group_type == NodeGroupType.MATERIAL:
+            bpy.ops.ntp.shader(material_name=obj.name)
+        elif group_type == NodeGroupType.SHADER_NODE_GROUP:
+            pass
+        elif group_type == NodeGroupType.WORLD:
+            pass
+
         return {'FINISHED'}
     
 classes = [

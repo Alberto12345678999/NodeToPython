@@ -42,7 +42,7 @@ class NTP_PT_Main(bpy.types.Panel):
         num_node_groups = gatherer.get_number_node_groups()
 
         if num_node_groups == 1:
-            node_group = gatherer.get_single_node_group().name
+            node_group = gatherer.get_single_node_group()[1].name
         else:
             node_group = f"{num_node_groups} node groups"
 
