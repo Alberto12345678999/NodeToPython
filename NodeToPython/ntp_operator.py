@@ -17,7 +17,7 @@ from typing import TextIO, Callable
 
 from .license_templates import license_templates
 from .ntp_node_tree import NTP_NodeTree
-from .options import NTP_PG_Options
+from .ntp_options import NTP_PG_Options
 from .node_settings import NodeInfo, ST
 from .utils import *
 

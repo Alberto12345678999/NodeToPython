@@ -13,34 +13,18 @@ if "bpy" in locals():
     importlib.reload(compositor)
     importlib.reload(geometry)
     importlib.reload(shader)
-    importlib.reload(options)
+    importlib.reload(ntp_menu)
+    importlib.reload(ntp_options)
 else:
     from . import compositor
     from . import geometry
     from . import shader
-    from . import options
+    from . import ntp_menu
+    from . import ntp_options
 
 import bpy
 
-
-class NodeToPythonMenu(bpy.types.Menu):
-    bl_idname = "NODE_MT_node_to_python"
-    bl_label = "Node To Python"
-
-    @classmethod
-    def poll(cls, context):
-        return True
-
-    def draw(self, context):
-        layout = self.layout.column_flow(columns=1)
-        layout.operator_context = 'INVOKE_DEFAULT'
-
-# TODO: do away with this, separate out into more appropriate modules
-classes: list[type] = [
-    NodeToPythonMenu
-]
-
-modules = [options]
+modules = [ntp_menu, ntp_options]
 for parent_module in [compositor, geometry, shader]:
     if hasattr(parent_module, "modules"):
         modules += parent_module.modules
@@ -48,9 +32,6 @@ for parent_module in [compositor, geometry, shader]:
         raise Exception(f"Module {parent_module} does not have list of modules")
 
 def register():
-    for cls in classes:
-        bpy.utils.register_class(cls)
-
     for module in modules:
         if hasattr(module, "classes"):
             for cls in getattr(module, "classes"):
@@ -59,9 +40,6 @@ def register():
             getattr(module, "register_props")()
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
-
     for module in modules:
         if hasattr(module, "classes"):
             for cls in getattr(module, "classes"):
