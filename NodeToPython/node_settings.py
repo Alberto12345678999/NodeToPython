@@ -19,18 +19,29 @@ class ST(Enum):
 	VEC4 = auto()
 	BAKE_ITEMS = auto()
 	CAPTURE_ATTRIBUTE_ITEMS = auto()
+	CLOSURE_INPUT_ITEMS = auto()
+	CLOSURE_OUTPUT_ITEMS = auto()
+	COLOR_MANAGED_DISPLAY_SETTINGS = auto()
+	COLOR_MANAGED_VIEW_SETTINGS = auto()
 	COLOR_RAMP = auto()
+	COMBINE_BUNDLE_ITEMS = auto()
+	COMPOSITOR_FILE_OUTPUT_ITEMS = auto()
 	CURVE_MAPPING = auto()
 	ENUM_DEFINITION = auto()
 	ENUM_ITEM = auto()
+	EVALUATE_CLOSURE_INPUT_ITEMS = auto()
+	EVALUATE_CLOSURE_OUTPUT_ITEMS = auto()
+	FIELD_TO_GRID_ITEMS = auto()
 	FOREACH_GEO_ELEMENT_GENERATION_ITEMS = auto()
 	FOREACH_GEO_ELEMENT_INPUT_ITEMS = auto()
 	FOREACH_GEO_ELEMENT_MAIN_ITEMS = auto()
 	FORMAT_STRING_ITEMS = auto()
+	GEOMETRY_VIEWER_ITEMS = auto()
 	INDEX_SWITCH_ITEMS = auto()
 	MENU_SWITCH_ITEMS = auto()
 	NODE_TREE = auto()
 	REPEAT_OUTPUT_ITEMS = auto()
+	SEPARATE_BUNDLE_ITEMS = auto()
 	SIM_OUTPUT_ITEMS = auto()
 	IMAGE = auto()
 	IMAGE_USER = auto()
@@ -53,12 +64,12 @@ class NTPNodeSetting(NamedTuple):
 	name_: str
 	st_: ST
 	min_version_: tuple = (3, 0, 0)
-	max_version_: tuple = (5, 0, 0)
+	max_version_: tuple = (5, 1, 0)
 
 class NodeInfo(NamedTuple):
 	attributes_: list[NTPNodeSetting]
 	min_version_: tuple = (3, 0, 0)
-	max_version_: tuple = (5, 0, 0)
+	max_version_: tuple = (5, 1, 0)
 
 node_settings : dict[str, NodeInfo] = {
 	'CompositorNodeAlphaOver' : NodeInfo(
@@ -90,7 +101,7 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("factor", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("factor_x", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("factor_y", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("filter_type", ST.ENUM),
+			NTPNodeSetting("filter_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("size_x", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("size_y", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("use_bokeh", ST.BOOL, max_version_=(4, 5, 0)),
@@ -123,7 +134,7 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("height", ST.FLOAT, max_version_=(4, 2, 0)),
 			NTPNodeSetting("mask_height", ST.FLOAT, min_version_=(4, 2, 0), max_version_=(4, 5, 0)),
-			NTPNodeSetting("mask_type", ST.ENUM),
+			NTPNodeSetting("mask_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("mask_width", ST.FLOAT, min_version_=(4, 2, 0), max_version_=(4, 5, 0)),
 			NTPNodeSetting("rotation", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("width", ST.FLOAT, max_version_=(4, 2, 0)),
@@ -140,12 +151,12 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeChannelMatte' : NodeInfo(
 		[
-			NTPNodeSetting("color_space", ST.ENUM),
-			NTPNodeSetting("limit_channel", ST.ENUM),
+			NTPNodeSetting("color_space", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("limit_channel", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("limit_max", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("limit_method", ST.ENUM),
+			NTPNodeSetting("limit_method", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("limit_min", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("matte_channel", ST.ENUM),
+			NTPNodeSetting("matte_channel", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -161,7 +172,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeColorBalance' : NodeInfo(
 		[
-			NTPNodeSetting("correction_method", ST.ENUM),
+			NTPNodeSetting("correction_method", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("gain", ST.VEC3, max_version_=(3, 5, 0)),
 			NTPNodeSetting("gain", ST.COLOR, min_version_=(3, 5, 0), max_version_=(4, 5, 0)),
 			NTPNodeSetting("gamma", ST.VEC3, max_version_=(3, 5, 0)),
@@ -224,9 +235,9 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeColorSpill' : NodeInfo(
 		[
-			NTPNodeSetting("channel", ST.ENUM),
-			NTPNodeSetting("limit_channel", ST.ENUM),
-			NTPNodeSetting("limit_method", ST.ENUM),
+			NTPNodeSetting("channel", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("limit_channel", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("limit_method", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("ratio", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("unspill_blue", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("unspill_green", ST.FLOAT, max_version_=(4, 5, 0)),
@@ -236,21 +247,25 @@ node_settings : dict[str, NodeInfo] = {
 	),
 
 	'CompositorNodeCombHSVA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeCombRGBA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeCombYCCA' : NodeInfo(
 		[
 			NTPNodeSetting("mode", ST.ENUM),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeCombYUVA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeCombineColor' : NodeInfo(
@@ -263,13 +278,15 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeCombineXYZ' : NodeInfo(
 		[],
-		min_version_ = (3, 2, 0)
+		min_version_ = (3, 2, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeComposite' : NodeInfo(
 		[
 			NTPNodeSetting("use_alpha", ST.BOOL, max_version_=(4, 5, 0)),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeConvertColorSpace' : NodeInfo(
@@ -280,9 +297,22 @@ node_settings : dict[str, NodeInfo] = {
 		min_version_ = (3, 1, 0)
 	),
 
+	'CompositorNodeConvertToDisplay' : NodeInfo(
+		[
+			NTPNodeSetting("display_settings", ST.COLOR_MANAGED_DISPLAY_SETTINGS),
+			NTPNodeSetting("view_settings", ST.COLOR_MANAGED_VIEW_SETTINGS),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'CompositorNodeConvolve' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
 	'CompositorNodeCornerPin' : NodeInfo(
 		[
-			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 5, 0)),
+			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 5, 0), max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -297,7 +327,7 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("rel_min_x", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("rel_min_y", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("relative", ST.BOOL, max_version_=(4, 5, 0)),
-			NTPNodeSetting("use_crop_size", ST.BOOL, max_version_=(4, 5, 0)),
+			NTPNodeSetting("use_crop_size", ST.BOOL, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -342,7 +372,8 @@ node_settings : dict[str, NodeInfo] = {
 	'CompositorNodeCurveVec' : NodeInfo(
 		[
 			NTPNodeSetting("mapping", ST.CURVE_MAPPING),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeCustomGroup' : NodeInfo(
@@ -381,9 +412,9 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeDenoise' : NodeInfo(
 		[
-			NTPNodeSetting("prefilter", ST.ENUM),
-			NTPNodeSetting("quality", ST.ENUM, min_version_=(4, 4, 0)),
-			NTPNodeSetting("use_hdr", ST.BOOL, max_version_=(4, 5, 0)),
+			NTPNodeSetting("prefilter", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("quality", ST.ENUM, min_version_=(4, 4, 0), max_version_=(5, 0, 0)),
+			NTPNodeSetting("use_hdr", ST.BOOL, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -405,8 +436,8 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("distance", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("edge", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("falloff", ST.ENUM),
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("falloff", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -416,7 +447,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeDistanceMatte' : NodeInfo(
 		[
-			NTPNodeSetting("channel", ST.ENUM),
+			NTPNodeSetting("channel", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("falloff", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("tolerance", ST.FLOAT, max_version_=(4, 5, 0)),
 		]
@@ -424,8 +455,8 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeDoubleEdgeMask' : NodeInfo(
 		[
-			NTPNodeSetting("edge_mode", ST.ENUM),
-			NTPNodeSetting("inner_mode", ST.ENUM),
+			NTPNodeSetting("edge_mode", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("inner_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -433,7 +464,7 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("height", ST.FLOAT, max_version_=(4, 2, 0)),
 			NTPNodeSetting("mask_height", ST.FLOAT, min_version_=(4, 2, 0), max_version_=(4, 5, 0)),
-			NTPNodeSetting("mask_type", ST.ENUM),
+			NTPNodeSetting("mask_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("mask_width", ST.FLOAT, min_version_=(4, 2, 0), max_version_=(4, 5, 0)),
 			NTPNodeSetting("rotation", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("width", ST.FLOAT, max_version_=(4, 2, 0)),
@@ -448,7 +479,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeFilter' : NodeInfo(
 		[
-			NTPNodeSetting("filter_type", ST.ENUM),
+			NTPNodeSetting("filter_type", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -467,14 +498,14 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("angle_offset", ST.FLOAT, max_version_=(4, 4, 0)),
 			NTPNodeSetting("color_modulation", ST.FLOAT, max_version_=(4, 4, 0)),
 			NTPNodeSetting("fade", ST.FLOAT, max_version_=(4, 4, 0)),
-			NTPNodeSetting("glare_type", ST.ENUM),
+			NTPNodeSetting("glare_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("iterations", ST.INT, max_version_=(4, 4, 0)),
 			NTPNodeSetting("mix", ST.FLOAT, max_version_=(4, 4, 0)),
-			NTPNodeSetting("quality", ST.ENUM),
+			NTPNodeSetting("quality", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("size", ST.INT, max_version_=(4, 4, 0)),
 			NTPNodeSetting("streaks", ST.INT, max_version_=(4, 4, 0)),
 			NTPNodeSetting("threshold", ST.FLOAT, max_version_=(4, 4, 0)),
-			NTPNodeSetting("use_rotate_45", ST.BOOL, max_version_=(4, 4, 0)),
+			NTPNodeSetting("use_rotate_45", ST.BOOL, max_version_=(4, 5, 0)),
 		]
 	),
 
@@ -510,7 +541,7 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("layer", ST.ENUM),
 			NTPNodeSetting("use_auto_refresh", ST.BOOL),
 			NTPNodeSetting("use_cyclic", ST.BOOL),
-			NTPNodeSetting("use_straight_alpha_output", ST.BOOL, max_version_=(4, 5, 0)),
+			NTPNodeSetting("use_straight_alpha_output", ST.BOOL, max_version_=(5, 0, 0)),
 			NTPNodeSetting("view", ST.ENUM),
 		]
 	),
@@ -550,7 +581,7 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("edge_kernel_radius", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("edge_kernel_tolerance", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("feather_distance", ST.INT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("feather_falloff", ST.ENUM),
+			NTPNodeSetting("feather_falloff", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("screen_balance", ST.FLOAT, max_version_=(4, 5, 0)),
 		]
 	),
@@ -570,14 +601,14 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("size", ST.INT, max_version_=(4, 1, 0)),
 			NTPNodeSetting("uniformity", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("use_high_precision", ST.BOOL, min_version_=(4, 1, 0), max_version_=(4, 5, 0)),
-			NTPNodeSetting("variation", ST.ENUM),
+			NTPNodeSetting("variation", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (4, 0, 0)
 	),
 
 	'CompositorNodeLensdist' : NodeInfo(
 		[
-			NTPNodeSetting("distortion_type", ST.ENUM, min_version_=(4, 5, 0)),
+			NTPNodeSetting("distortion_type", ST.ENUM, min_version_=(4, 5, 0), max_version_=(5, 0, 0)),
 			NTPNodeSetting("use_fit", ST.BOOL, max_version_=(4, 5, 0)),
 			NTPNodeSetting("use_jitter", ST.BOOL, max_version_=(4, 5, 0)),
 			NTPNodeSetting("use_projector", ST.BOOL, max_version_=(4, 5, 0)),
@@ -586,27 +617,28 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeLevels' : NodeInfo(
 		[
-			NTPNodeSetting("channel", ST.ENUM),
+			NTPNodeSetting("channel", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeLumaMatte' : NodeInfo(
 		[
-			NTPNodeSetting("limit_max", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("limit_min", ST.FLOAT, max_version_=(4, 5, 0)),
+			NTPNodeSetting("limit_max", ST.FLOAT, max_version_=(5, 0, 0)),
+			NTPNodeSetting("limit_min", ST.FLOAT, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeMapRange' : NodeInfo(
 		[
 			NTPNodeSetting("use_clamp", ST.BOOL),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeMapUV' : NodeInfo(
 		[
 			NTPNodeSetting("alpha", ST.INT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("filter_type", ST.ENUM, min_version_=(4, 1, 0)),
+			NTPNodeSetting("filter_type", ST.ENUM, min_version_=(4, 1, 0), max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -618,7 +650,8 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("size", ST.VEC1),
 			NTPNodeSetting("use_max", ST.BOOL),
 			NTPNodeSetting("use_min", ST.BOOL),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeMask' : NodeInfo(
@@ -626,7 +659,7 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("mask", ST.MASK),
 			NTPNodeSetting("motion_blur_samples", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("motion_blur_shutter", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("size_source", ST.ENUM),
+			NTPNodeSetting("size_source", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("size_x", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("size_y", ST.INT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("use_feather", ST.BOOL, max_version_=(4, 5, 0)),
@@ -638,7 +671,8 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("operation", ST.ENUM),
 			NTPNodeSetting("use_clamp", ST.BOOL),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeMixRGB' : NodeInfo(
@@ -646,7 +680,8 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("blend_type", ST.ENUM),
 			NTPNodeSetting("use_alpha", ST.BOOL),
 			NTPNodeSetting("use_clamp", ST.BOOL),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeMovieClip' : NodeInfo(
@@ -658,7 +693,7 @@ node_settings : dict[str, NodeInfo] = {
 	'CompositorNodeMovieDistortion' : NodeInfo(
 		[
 			NTPNodeSetting("clip", ST.MOVIE_CLIP),
-			NTPNodeSetting("distortion_type", ST.ENUM),
+			NTPNodeSetting("distortion_type", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -672,11 +707,15 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeOutputFile' : NodeInfo(
 		[
-			NTPNodeSetting("active_input_index", ST.INT),
-			NTPNodeSetting("base_path", ST.STRING),
-			NTPNodeSetting("file_slots", ST.FILE_SLOTS),
+			NTPNodeSetting("active_input_index", ST.INT, max_version_=(5, 0, 0)),
+			NTPNodeSetting("active_item_index", ST.INT, min_version_=(5, 0, 0)),
+			NTPNodeSetting("base_path", ST.STRING, max_version_=(5, 0, 0)),
+			NTPNodeSetting("directory", ST.STRING, min_version_=(5, 0, 0)),
+			NTPNodeSetting("file_name", ST.STRING, min_version_=(5, 0, 0)),
+			NTPNodeSetting("file_output_items", ST.COMPOSITOR_FILE_OUTPUT_ITEMS, min_version_=(5, 0, 0)),
+			NTPNodeSetting("file_slots", ST.FILE_SLOTS, max_version_=(5, 0, 0)),
 			NTPNodeSetting("format", ST.IMAGE_FORMAT_SETTINGS),
-			NTPNodeSetting("layer_slots", ST.LAYER_SLOTS),
+			NTPNodeSetting("layer_slots", ST.LAYER_SLOTS, max_version_=(5, 0, 0)),
 			NTPNodeSetting("save_as_render", ST.BOOL, min_version_=(4, 3, 0)),
 		]
 	),
@@ -704,7 +743,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodePremulKey' : NodeInfo(
 		[
-			NTPNodeSetting("mapping", ST.ENUM),
+			NTPNodeSetting("mapping", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -733,17 +772,17 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeRotate' : NodeInfo(
 		[
-			NTPNodeSetting("filter_type", ST.ENUM),
+			NTPNodeSetting("filter_type", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeScale' : NodeInfo(
 		[
-			NTPNodeSetting("frame_method", ST.ENUM),
-			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 5, 0)),
+			NTPNodeSetting("frame_method", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 5, 0), max_version_=(5, 0, 0)),
 			NTPNodeSetting("offset_x", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("offset_y", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("space", ST.ENUM),
+			NTPNodeSetting("space", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -753,21 +792,25 @@ node_settings : dict[str, NodeInfo] = {
 	),
 
 	'CompositorNodeSepHSVA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSepRGBA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSepYCCA' : NodeInfo(
 		[
 			NTPNodeSetting("mode", ST.ENUM),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSepYUVA' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSeparateColor' : NodeInfo(
@@ -780,19 +823,20 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeSeparateXYZ' : NodeInfo(
 		[],
-		min_version_ = (3, 2, 0)
+		min_version_ = (3, 2, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSetAlpha' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeSplit' : NodeInfo(
 		[
-			NTPNodeSetting("axis", ST.ENUM),
-			NTPNodeSetting("factor", ST.INT, max_version_=(4, 5, 0)),
+			NTPNodeSetting("axis", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("factor", ST.INT, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (4, 1, 0)
 	),
@@ -808,7 +852,7 @@ node_settings : dict[str, NodeInfo] = {
 	'CompositorNodeStabilize' : NodeInfo(
 		[
 			NTPNodeSetting("clip", ST.MOVIE_CLIP),
-			NTPNodeSetting("filter_type", ST.ENUM),
+			NTPNodeSetting("filter_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("invert", ST.BOOL, max_version_=(4, 5, 0)),
 		]
 	),
@@ -817,7 +861,8 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("ray_length", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("source", ST.VEC2, max_version_=(4, 5, 0)),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeSwitch' : NodeInfo(
@@ -834,14 +879,15 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("node_output", ST.INT),
 			NTPNodeSetting("texture", ST.TEXTURE),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeTime' : NodeInfo(
 		[
 			NTPNodeSetting("curve", ST.CURVE_MAPPING),
-			NTPNodeSetting("frame_end", ST.INT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("frame_start", ST.INT, max_version_=(4, 5, 0)),
+			NTPNodeSetting("frame_end", ST.INT, max_version_=(5, 0, 0)),
+			NTPNodeSetting("frame_start", ST.INT, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -854,15 +900,15 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("intensity", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("key", ST.FLOAT, max_version_=(4, 5, 0)),
 			NTPNodeSetting("offset", ST.FLOAT, max_version_=(4, 5, 0)),
-			NTPNodeSetting("tonemap_type", ST.ENUM),
+			NTPNodeSetting("tonemap_type", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeTrackPos' : NodeInfo(
 		[
 			NTPNodeSetting("clip", ST.MOVIE_CLIP),
-			NTPNodeSetting("frame_relative", ST.INT),
-			NTPNodeSetting("position", ST.ENUM),
+			NTPNodeSetting("frame_relative", ST.INT, max_version_=(5, 0, 0)),
+			NTPNodeSetting("position", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("track_name", ST.STRING),
 			NTPNodeSetting("tracking_object", ST.STRING),
 		]
@@ -870,26 +916,28 @@ node_settings : dict[str, NodeInfo] = {
 
 	'CompositorNodeTransform' : NodeInfo(
 		[
-			NTPNodeSetting("filter_type", ST.ENUM),
+			NTPNodeSetting("filter_type", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeTranslate' : NodeInfo(
 		[
-			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 2, 0)),
+			NTPNodeSetting("interpolation", ST.ENUM, min_version_=(4, 2, 0), max_version_=(5, 0, 0)),
 			NTPNodeSetting("use_relative", ST.BOOL, max_version_=(4, 5, 0)),
-			NTPNodeSetting("wrap_axis", ST.ENUM),
+			NTPNodeSetting("wrap_axis", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'CompositorNodeValToRGB' : NodeInfo(
 		[
 			NTPNodeSetting("color_ramp", ST.COLOR_RAMP),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeValue' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'CompositorNodeVecBlur' : NodeInfo(
@@ -1090,7 +1138,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'FunctionNodeMatchString' : NodeInfo(
 		[
-			NTPNodeSetting("operation", ST.ENUM),
+			NTPNodeSetting("operation", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (4, 5, 0)
 	),
@@ -1185,6 +1233,13 @@ node_settings : dict[str, NodeInfo] = {
 		[]
 	),
 
+	'FunctionNodeStringToValue' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
 	'FunctionNodeTransformDirection' : NodeInfo(
 		[],
 		min_version_ = (4, 2, 0)
@@ -1277,7 +1332,8 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeClosureInput' : NodeInfo(
 		[],
-		min_version_ = (4, 5, 0)
+		min_version_ = (4, 5, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeClosureOutput' : NodeInfo(
@@ -1285,7 +1341,8 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("active_input_index", ST.INT),
 			NTPNodeSetting("active_output_index", ST.INT),
 		],
-		min_version_ = (4, 5, 0)
+		min_version_ = (4, 5, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeCollectionInfo' : NodeInfo(
@@ -1298,7 +1355,8 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("active_index", ST.INT),
 		],
-		min_version_ = (4, 5, 0)
+		min_version_ = (4, 5, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeConvexHull' : NodeInfo(
@@ -1443,7 +1501,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeDistributePointsInVolume' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 4, 0)
 	),
@@ -1497,7 +1555,8 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("active_input_index", ST.INT),
 			NTPNodeSetting("active_output_index", ST.INT),
 		],
-		min_version_ = (4, 5, 0)
+		min_version_ = (4, 5, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeExtrudeMesh' : NodeInfo(
@@ -1544,6 +1603,15 @@ node_settings : dict[str, NodeInfo] = {
 		min_version_ = (3, 3, 0)
 	),
 
+	'GeometryNodeFieldToGrid' : NodeInfo(
+		[
+			NTPNodeSetting("active_index", ST.INT),
+			NTPNodeSetting("data_type", ST.ENUM),
+			NTPNodeSetting("grid_items", ST.FIELD_TO_GRID_ITEMS),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
 	'GeometryNodeFieldVariance' : NodeInfo(
 		[
 			NTPNodeSetting("data_type", ST.ENUM),
@@ -1554,13 +1622,13 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeFillCurve' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
 	'GeometryNodeFilletCurve' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -1635,6 +1703,28 @@ node_settings : dict[str, NodeInfo] = {
 		min_version_ = (4, 3, 0)
 	),
 
+	'GeometryNodeGridAdvect' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeGridCurl' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeGridDivergence' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeGridGradient' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
 	'GeometryNodeGridInfo' : NodeInfo(
 		[
 			NTPNodeSetting("data_type", ST.ENUM),
@@ -1642,9 +1732,28 @@ node_settings : dict[str, NodeInfo] = {
 		min_version_ = (4, 5, 0)
 	),
 
+	'GeometryNodeGridLaplacian' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeGridPrune' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
 	'GeometryNodeGridToMesh' : NodeInfo(
 		[],
 		min_version_ = (4, 2, 0)
+	),
+
+	'GeometryNodeGridVoxelize' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeGroup' : NodeInfo(
@@ -1876,6 +1985,11 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeInputTangent' : NodeInfo(
 		[]
+	),
+
+	'GeometryNodeInputVoxelIndex' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeInstanceOnPoints' : NodeInfo(
@@ -2206,6 +2320,27 @@ node_settings : dict[str, NodeInfo] = {
 		max_version_ = (3, 2, 0)
 	),
 
+	'GeometryNodeList' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeListGetItem' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeListLength' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
 	'GeometryNodeMaterialSelection' : NodeInfo(
 		[]
 	),
@@ -2229,7 +2364,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeMergeByDistance' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM, min_version_=(3, 2, 0)),
+			NTPNodeSetting("mode", ST.ENUM, min_version_=(3, 2, 0), max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 1, 0)
 	),
@@ -2322,7 +2457,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeMeshToVolume' : NodeInfo(
 		[
-			NTPNodeSetting("resolution_mode", ST.ENUM),
+			NTPNodeSetting("resolution_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 3, 0)
 	),
@@ -2387,7 +2522,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodePointsToVolume' : NodeInfo(
 		[
-			NTPNodeSetting("resolution_mode", ST.ENUM),
+			NTPNodeSetting("resolution_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2400,7 +2535,7 @@ node_settings : dict[str, NodeInfo] = {
 	'GeometryNodeRaycast' : NodeInfo(
 		[
 			NTPNodeSetting("data_type", ST.ENUM),
-			NTPNodeSetting("mapping", ST.ENUM),
+			NTPNodeSetting("mapping", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2412,7 +2547,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeRemoveAttribute' : NodeInfo(
 		[
-			NTPNodeSetting("pattern_mode", ST.ENUM, min_version_=(4, 2, 0)),
+			NTPNodeSetting("pattern_mode", ST.ENUM, min_version_=(4, 2, 0), max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 2, 0)
 	),
@@ -2438,7 +2573,7 @@ node_settings : dict[str, NodeInfo] = {
 	'GeometryNodeResampleCurve' : NodeInfo(
 		[
 			NTPNodeSetting("keep_last_segment", ST.BOOL, min_version_=(4, 4, 0)),
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2455,6 +2590,36 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("operation", ST.ENUM),
 		],
 		min_version_ = (4, 2, 0)
+	),
+
+	'GeometryNodeSDFGridFillet' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSDFGridLaplacian' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSDFGridMean' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSDFGridMeanCurvature' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSDFGridMedian' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSDFGridOffset' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeSDFVolumeSphere' : NodeInfo(
@@ -2474,7 +2639,7 @@ node_settings : dict[str, NodeInfo] = {
 	'GeometryNodeSampleGrid' : NodeInfo(
 		[
 			NTPNodeSetting("data_type", ST.ENUM),
-			NTPNodeSetting("interpolation_mode", ST.ENUM),
+			NTPNodeSetting("interpolation_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (4, 2, 0)
 	),
@@ -2528,7 +2693,7 @@ node_settings : dict[str, NodeInfo] = {
 	'GeometryNodeScaleElements' : NodeInfo(
 		[
 			NTPNodeSetting("domain", ST.ENUM),
-			NTPNodeSetting("scale_mode", ST.ENUM),
+			NTPNodeSetting("scale_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 1, 0)
 	),
@@ -2546,7 +2711,8 @@ node_settings : dict[str, NodeInfo] = {
 		[
 			NTPNodeSetting("active_index", ST.INT),
 		],
-		min_version_ = (4, 5, 0)
+		min_version_ = (4, 5, 0),
+		max_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeSeparateComponents' : NodeInfo(
@@ -2567,7 +2733,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeSetCurveNormal' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM),
+			NTPNodeSetting("mode", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 4, 0)
 	),
@@ -2602,6 +2768,20 @@ node_settings : dict[str, NodeInfo] = {
 	'GeometryNodeSetGreasePencilSoftness' : NodeInfo(
 		[],
 		min_version_ = (4, 5, 0)
+	),
+
+	'GeometryNodeSetGridBackground' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'GeometryNodeSetGridTransform' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
 	),
 
 	'GeometryNodeSetID' : NodeInfo(
@@ -2730,8 +2910,8 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeSubdivisionSurface' : NodeInfo(
 		[
-			NTPNodeSetting("boundary_smooth", ST.ENUM),
-			NTPNodeSetting("uv_smooth", ST.ENUM),
+			NTPNodeSetting("boundary_smooth", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("uv_smooth", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2783,7 +2963,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeTransform' : NodeInfo(
 		[
-			NTPNodeSetting("mode", ST.ENUM, min_version_=(4, 2, 0)),
+			NTPNodeSetting("mode", ST.ENUM, min_version_=(4, 2, 0), max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2793,8 +2973,8 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeTriangulate' : NodeInfo(
 		[
-			NTPNodeSetting("ngon_method", ST.ENUM),
-			NTPNodeSetting("quad_method", ST.ENUM),
+			NTPNodeSetting("ngon_method", ST.ENUM, max_version_=(5, 0, 0)),
+			NTPNodeSetting("quad_method", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2809,9 +2989,14 @@ node_settings : dict[str, NodeInfo] = {
 		min_version_ = (3, 3, 0)
 	),
 
+	'GeometryNodeUVTangent' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
 	'GeometryNodeUVUnwrap' : NodeInfo(
 		[
-			NTPNodeSetting("method", ST.ENUM),
+			NTPNodeSetting("method", ST.ENUM, max_version_=(5, 0, 0)),
 		],
 		min_version_ = (3, 3, 0)
 	),
@@ -2823,9 +3008,11 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeViewer' : NodeInfo(
 		[
-			NTPNodeSetting("data_type", ST.ENUM),
+			NTPNodeSetting("active_index", ST.INT, min_version_=(5, 0, 0)),
+			NTPNodeSetting("data_type", ST.ENUM, max_version_=(5, 0, 0)),
 			NTPNodeSetting("domain", ST.ENUM, min_version_=(3, 4, 0)),
 			NTPNodeSetting("ui_shortcut", ST.INT, min_version_=(4, 5, 0)),
+			NTPNodeSetting("viewer_items", ST.GEOMETRY_VIEWER_ITEMS, min_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2841,7 +3028,7 @@ node_settings : dict[str, NodeInfo] = {
 
 	'GeometryNodeVolumeToMesh' : NodeInfo(
 		[
-			NTPNodeSetting("resolution_mode", ST.ENUM),
+			NTPNodeSetting("resolution_mode", ST.ENUM, max_version_=(5, 0, 0)),
 		]
 	),
 
@@ -2850,6 +3037,49 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("warning_type", ST.ENUM),
 		],
 		min_version_ = (4, 3, 0)
+	),
+
+	'NodeClosureInput' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
+	'NodeClosureOutput' : NodeInfo(
+		[
+			NTPNodeSetting("active_input_index", ST.INT),
+			NTPNodeSetting("active_output_index", ST.INT),
+			NTPNodeSetting("define_signature", ST.BOOL),
+			NTPNodeSetting("input_items", ST.CLOSURE_INPUT_ITEMS),
+			NTPNodeSetting("output_items", ST.CLOSURE_OUTPUT_ITEMS),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'NodeCombineBundle' : NodeInfo(
+		[
+			NTPNodeSetting("active_index", ST.INT),
+			NTPNodeSetting("bundle_items", ST.COMBINE_BUNDLE_ITEMS),
+			NTPNodeSetting("define_signature", ST.BOOL),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'NodeEnableOutput' : NodeInfo(
+		[
+			NTPNodeSetting("data_type", ST.ENUM),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
+	'NodeEvaluateClosure' : NodeInfo(
+		[
+			NTPNodeSetting("active_input_index", ST.INT),
+			NTPNodeSetting("active_output_index", ST.INT),
+			NTPNodeSetting("define_signature", ST.BOOL),
+			NTPNodeSetting("input_items", ST.EVALUATE_CLOSURE_OUTPUT_ITEMS),
+			NTPNodeSetting("output_items", ST.EVALUATE_CLOSURE_OUTPUT_ITEMS),
+		],
+		min_version_ = (5, 0, 0)
 	),
 
 	'NodeFrame' : NodeInfo(
@@ -2876,10 +3106,24 @@ node_settings : dict[str, NodeInfo] = {
 		]
 	),
 
+	'NodeJoinBundle' : NodeInfo(
+		[],
+		min_version_ = (5, 0, 0)
+	),
+
 	'NodeReroute' : NodeInfo(
 		[
 			NTPNodeSetting("socket_idname", ST.STRING, min_version_=(4, 3, 0)),
 		]
+	),
+
+	'NodeSeparateBundle' : NodeInfo(
+		[
+			NTPNodeSetting("active_index", ST.INT),
+			NTPNodeSetting("bundle_items", ST.SEPARATE_BUNDLE_ITEMS),
+			NTPNodeSetting("define_signature", ST.BOOL),
+		],
+		min_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeAddShader' : NodeInfo(
@@ -3031,11 +3275,13 @@ node_settings : dict[str, NodeInfo] = {
 	),
 
 	'ShaderNodeCombineHSV' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeCombineRGB' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeCombineXYZ' : NodeInfo(
@@ -3234,6 +3480,13 @@ node_settings : dict[str, NodeInfo] = {
 		[]
 	),
 
+	'ShaderNodeRadialTiling' : NodeInfo(
+		[
+			NTPNodeSetting("normalize", ST.BOOL),
+		],
+		min_version_ = (5, 0, 0)
+	),
+
 	'ShaderNodeScript' : NodeInfo(
 		[
 			NTPNodeSetting("bytecode", ST.STRING),
@@ -3253,11 +3506,13 @@ node_settings : dict[str, NodeInfo] = {
 	),
 
 	'ShaderNodeSeparateHSV' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeSeparateRGB' : NodeInfo(
-		[]
+		[],
+		max_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeSeparateXYZ' : NodeInfo(
@@ -3381,14 +3636,16 @@ node_settings : dict[str, NodeInfo] = {
 			NTPNodeSetting("space", ST.ENUM),
 			NTPNodeSetting("vertex_attribute_name", ST.STRING),
 			NTPNodeSetting("vertex_color_source", ST.ENUM),
-		]
+		],
+		max_version_ = (5, 0, 0)
 	),
 
 	'ShaderNodeTexSky' : NodeInfo(
 		[
+			NTPNodeSetting("aerosol_density", ST.FLOAT, min_version_=(5, 0, 0)),
 			NTPNodeSetting("air_density", ST.FLOAT),
 			NTPNodeSetting("altitude", ST.FLOAT),
-			NTPNodeSetting("dust_density", ST.FLOAT),
+			NTPNodeSetting("dust_density", ST.FLOAT, max_version_=(5, 0, 0)),
 			NTPNodeSetting("ground_albedo", ST.FLOAT),
 			NTPNodeSetting("ozone_density", ST.FLOAT),
 			NTPNodeSetting("sky_type", ST.ENUM),
