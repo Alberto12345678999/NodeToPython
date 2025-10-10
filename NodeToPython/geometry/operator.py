@@ -59,27 +59,27 @@ class NTP_OT_GeometryNodes(NTP_Operator):
             self._set_socket_defaults(node)
 
     if bpy.app.version >= (3, 6, 0):
-        def _process_zones(self, zone_inputs: list[GeometryNode]) -> None:
+        def _process_zones(self, zone_input_list: list[bpy.types.Node]) -> None:
             """
             Recreates a zone
-            zone_inputs (list[GeometryNodeSimulationInput]): list of 
-                simulation input nodes
+            zone_input_list (list[bpy.types.Node]): list of zone input 
+                nodes
             """
-            for zone_input in zone_inputs:
-                zone_output = zone_input.paired_output
+            for input_node in zone_input_list:
+                zone_output = input_node.paired_output
 
-                zone_input_var = self._node_vars[zone_input]
+                zone_input_var = self._node_vars[input_node]
                 zone_output_var = self._node_vars[zone_output]
 
-                self._write(f"# Process zone input {zone_input.name}")
+                self._write(f"# Process zone input {input_node.name}")
                 self._write(f"{zone_input_var}.pair_with_output"
                             f"({zone_output_var})")
 
                 #must set defaults after paired with output
-                self._set_socket_defaults(zone_input)
+                self._set_socket_defaults(input_node)
                 self._set_socket_defaults(zone_output)
 
-            if zone_inputs:
+            if zone_input_list:
                 self._write("", 0)
 
     if bpy.app.version >= (4, 0, 0):
