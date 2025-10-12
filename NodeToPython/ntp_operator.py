@@ -477,9 +477,9 @@ class NTP_Operator(Operator):
             elif st == ST.CLOSURE_OUTPUT_ITEMS:
                 self._closure_output_items(attr, setting_str)
             elif st == ST.COLOR_MANAGED_DISPLAY_SETTINGS:
-                pass
+                self._color_managed_display_settings(attr, setting_str)
             elif st == ST.COLOR_MANAGED_VIEW_SETTINGS:
-                pass
+                self._color_managed_view_settings(attr, setting_str)
             elif st == ST.COMPOSITOR_FILE_OUTPUT_ITEMS:
                 self._compositor_file_output_items(attr, setting_str)
             elif st == ST.EVALUATE_CLOSURE_INPUT_ITEMS:
@@ -1579,6 +1579,27 @@ class NTP_Operator(Operator):
                 if item.socket_type == 'VECTOR':
                     self._write(f"{items_str}.vector_socket_dimensions = "
                                 f"{item.vector_socket_dimensions}")
+                    
+        def _color_managed_display_settings(self,
+            display_settings : bpy.types.ColorManagedDisplaySettings,
+            display_settings_str : str
+        ) -> None:
+            device_str = enum_to_py_str(display_settings.display_device)
+            self._write(f"{display_settings_str}.display_device = {device_str}")
+            emulation_str = enum_to_py_str(display_settings.emulation)
+            self._write(f"{display_settings_str}.emulation = {emulation_str}")
+    
+        def _color_managed_view_settings(self,
+            view_settings : bpy.types.ColorManagedViewSettings,
+            view_settings_str : str
+        ) -> None:
+            # view transform must go before setting look
+            view_transform_str = enum_to_py_str(view_settings.view_transform)
+            self._write(f"{view_settings_str}.view_transform = {view_transform_str}")
+
+            look_str = enum_to_py_str(view_settings.look)
+            self._write(f"{view_settings_str}.look = {look_str}")
+
 
     def _set_parents(self, node_tree: NodeTree) -> None:
         """
