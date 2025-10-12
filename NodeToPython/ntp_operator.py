@@ -487,7 +487,7 @@ class NTP_Operator(Operator):
             elif st == ST.EVALUATE_CLOSURE_OUTPUT_ITEMS:
                 self._evaluate_closure_output_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.FIELD_TO_GRID_ITEMS:
-                pass
+                self._field_to_grid_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.GEOMETRY_VIEWER_ITEMS:
                 pass
             elif st == ST.COMBINE_BUNDLE_ITEMS:
@@ -1534,6 +1534,17 @@ class NTP_Operator(Operator):
                 structure_type = enum_to_py_str(item.structure_type)
                 self._write(f"{item_str}.structure_type = {structure_type}")
 
+        def _field_to_grid_items(self,
+            field_to_grid_items: bpy.types.GeometryNodeFieldToGridItems,
+            field_to_grid_items_str : str,
+        ) -> None:
+            self._write(f"{field_to_grid_items_str}.clear()")
+            for i, item in enumerate(field_to_grid_items):
+                data_type = enum_to_py_str(item.data_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{field_to_grid_items_str}.new("
+                             f"{data_type}, {name_str})"))
+                
 
     def _set_parents(self, node_tree: NodeTree) -> None:
         """
