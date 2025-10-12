@@ -444,38 +444,38 @@ class NTP_Operator(Operator):
                 if self._addon_dir is not None:
                     if attr.source in {'FILE', 'GENERATED', 'TILED'}:
                         if self._save_image(attr):
-                            self._load_image(attr, f"{node_var}.{attr_name}")
+                            self._load_image(attr, setting_str)
                 else:
                     self._set_if_in_blend_file(attr, setting_str, "images")
 
             elif st == ST.IMAGE_USER:
-                self._image_user_settings(attr, f"{node_var}.{attr_name}")
+                self._image_user_settings(attr, setting_str)
             elif st == ST.SIM_OUTPUT_ITEMS:
-                self._output_zone_items(attr, f"{node_var}.{attr_name}", True)
+                self._output_zone_items(attr, setting_str, True)
             elif st == ST.REPEAT_OUTPUT_ITEMS:
-                self._output_zone_items(attr, f"{node_var}.{attr_name}", False)
+                self._output_zone_items(attr, setting_str, False)
             elif st == ST.INDEX_SWITCH_ITEMS:
-                self._index_switch_items(attr, f"{node_var}.{attr_name}")
+                self._index_switch_items(attr, setting_str)
             elif st == ST.ENUM_DEFINITION:
-                self._enum_definition(attr, f"{node_var}.{attr_name}")
+                self._enum_definition(attr, setting_str)
             elif st == ST.BAKE_ITEMS:
-                self._bake_items(attr, f"{node_var}.{attr_name}")
+                self._bake_items(attr, setting_str)
             elif st == ST.CAPTURE_ATTRIBUTE_ITEMS:
-                self._capture_attribute_items(attr, f"{node_var}.{attr_name}")
+                self._capture_attribute_items(attr, setting_str)
             elif st == ST.MENU_SWITCH_ITEMS:
-                self._menu_switch_items(attr, f"{node_var}.{attr_name}")
+                self._menu_switch_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_GENERATION_ITEMS:
-                self._foreach_geo_element_generation_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_generation_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_INPUT_ITEMS:
-                self._foreach_geo_element_input_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_input_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_MAIN_ITEMS:
-                self._foreach_geo_element_main_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_main_items(attr, setting_str)
             elif st == ST.FORMAT_STRING_ITEMS:
-                self._format_string_items(attr, f"{node_var}.{attr_name}")
+                self._format_string_items(attr, setting_str)
             elif st == ST.CLOSURE_INPUT_ITEMS:
-                self._closure_input_items(attr, f"{node_var}.{attr_name}")
+                self._closure_input_items(attr, setting_str)
             elif st == ST.CLOSURE_OUTPUT_ITEMS:
-                self._closure_output_items(attr, f"{node_var}.{attr_name}")
+                self._closure_output_items(attr, setting_str)
             elif st == ST.COLOR_MANAGED_DISPLAY_SETTINGS:
                 pass
             elif st == ST.COLOR_MANAGED_VIEW_SETTINGS:
@@ -483,17 +483,17 @@ class NTP_Operator(Operator):
             elif st == ST.COMPOSITOR_FILE_OUTPUT_ITEMS:
                 self._compositor_file_output_items(attr, setting_str)
             elif st == ST.EVALUATE_CLOSURE_INPUT_ITEMS:
-                self._evaluate_closure_input_items(attr, f"{node_var}.{attr_name}")
+                self._evaluate_closure_input_items(attr, setting_str)
             elif st == ST.EVALUATE_CLOSURE_OUTPUT_ITEMS:
-                self._evaluate_closure_output_items(attr, f"{node_var}.{attr_name}")
+                self._evaluate_closure_output_items(attr, setting_str)
             elif st == ST.FIELD_TO_GRID_ITEMS:
-                self._field_to_grid_items(attr, f"{node_var}.{attr_name}")
+                self._field_to_grid_items(attr, setting_str)
             elif st == ST.GEOMETRY_VIEWER_ITEMS:
-                self._geometry_viewer_items(attr, f"{node_var}.{attr_name}")
+                self._geometry_viewer_items(attr, setting_str)
             elif st == ST.COMBINE_BUNDLE_ITEMS:
-                self._combine_bundle_items(attr, f"{node_var}.{attr_name}")
+                self._combine_bundle_items(attr, setting_str)
             elif st == ST.SEPARATE_BUNDLE_ITEMS:
-                self._separate_bundle_items(attr, f"{node_var}.{attr_name}")
+                self._separate_bundle_items(attr, setting_str)
 
     if bpy.app.version < (4, 0, 0):
         def _set_group_socket_defaults(self, socket_interface: NodeSocketInterface,
