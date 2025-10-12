@@ -489,7 +489,7 @@ class NTP_Operator(Operator):
             elif st == ST.FIELD_TO_GRID_ITEMS:
                 self._field_to_grid_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.GEOMETRY_VIEWER_ITEMS:
-                pass
+                self._geometry_viewer_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.COMBINE_BUNDLE_ITEMS:
                 self._combine_bundle_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.SEPARATE_BUNDLE_ITEMS:
@@ -1545,6 +1545,22 @@ class NTP_Operator(Operator):
                 self._write((f"{field_to_grid_items_str}.new("
                              f"{data_type}, {name_str})"))
                 
+        def _geometry_viewer_items(self,
+            geometry_viewer_items: bpy.types.NodeGeometryViewerItems,
+            geometry_viewer_items_str : str,
+        ) -> None:
+            self._write(f"{geometry_viewer_items_str}.clear()")
+            for i, item in enumerate(geometry_viewer_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{geometry_viewer_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                items_str = f"{geometry_viewer_items_str}[{i}]"
+                
+                # Uncomment when https://projects.blender.org/blender/blender/issues/147907 is resolved
+                #self._write(f"{items_str}.auto_remove = {item.auto_remove}")
+
 
     def _set_parents(self, node_tree: NodeTree) -> None:
         """
