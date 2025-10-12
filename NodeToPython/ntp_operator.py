@@ -481,7 +481,7 @@ class NTP_Operator(Operator):
             elif st == ST.COLOR_MANAGED_VIEW_SETTINGS:
                 pass
             elif st == ST.COMPOSITOR_FILE_OUTPUT_ITEMS:
-                pass
+                self._compositor_file_output_items(attr, setting_str)
             elif st == ST.EVALUATE_CLOSURE_INPUT_ITEMS:
                 self._evaluate_closure_input_items(attr, f"{node_var}.{attr_name}")
             elif st == ST.EVALUATE_CLOSURE_OUTPUT_ITEMS:
@@ -1560,7 +1560,25 @@ class NTP_Operator(Operator):
                 
                 # Uncomment when https://projects.blender.org/blender/blender/issues/147907 is resolved
                 #self._write(f"{items_str}.auto_remove = {item.auto_remove}")
-
+        
+        def _compositor_file_output_items(self,
+            compositor_file_output_items: bpy.types.NodeCompositorFileOutputItems,
+            compositor_file_output_items_str : str,
+        ) -> None:
+            self._write(f"{compositor_file_output_items_str}.clear()")
+            for i, item in enumerate(compositor_file_output_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{compositor_file_output_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                items_str = f"{compositor_file_output_items_str}[{i}]"
+                
+                self._write(f"{items_str}.override_node_format = {item.override_node_format}")
+                self._write(f"{items_str}.save_as_render = {item.save_as_render}")
+                if item.socket_type == 'VECTOR':
+                    self._write(f"{items_str}.vector_socket_dimensions = "
+                                f"{item.vector_socket_dimensions}")
 
     def _set_parents(self, node_tree: NodeTree) -> None:
         """
