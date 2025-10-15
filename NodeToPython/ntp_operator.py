@@ -635,12 +635,19 @@ class NTP_Operator(Operator):
                     return
             if type(socket_interface) == bpy.types.NodeTreeInterfaceSocketColor:
                 dv = vec4_to_py_str(dv)
-            elif type(dv) in {mathutils.Vector, mathutils.Euler}:
+            elif type(dv) == mathutils.Euler:
                 dv = vec3_to_py_str(dv)
             elif type(dv) == bpy_prop_array:
                 dv = array_to_py_str(dv)
             elif type(dv) == str:
                 dv = str_to_py_str(dv)
+            elif type(dv) == mathutils.Vector:
+                if len(dv) == 2:
+                    dv = vec2_to_py_str(dv)
+                elif len(dv) == 3:
+                    dv = vec3_to_py_str(dv)
+                elif len(dv) == 4:
+                    dv = vec4_to_py_str(dv)
             self._write(f"{socket_var}.default_value = {dv}")
 
             # min value
