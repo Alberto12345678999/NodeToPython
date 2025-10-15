@@ -1558,8 +1558,14 @@ class NTP_Operator(Operator):
                 
                 items_str = f"{geometry_viewer_items_str}[{i}]"
                 
-                # Uncomment when https://projects.blender.org/blender/blender/issues/147907 is resolved
-                #self._write(f"{items_str}.auto_remove = {item.auto_remove}")
+                # auto remove will automatically remove input if not linked
+                # need to initialize after links
+                auto_remove_str = f"{items_str}.auto_remove = {item.auto_remove}"
+                self._write_after_links.append(
+                    lambda _auto_remove_str = auto_remove_str: (
+                        self._write(_auto_remove_str)
+                    )
+                )
         
         def _compositor_file_output_items(self,
             compositor_file_output_items: bpy.types.NodeCompositorFileOutputItems,
