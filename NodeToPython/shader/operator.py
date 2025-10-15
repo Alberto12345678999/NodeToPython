@@ -30,7 +30,8 @@ class NTP_OT_Shader(NTP_Operator):
     def _create_material(self, indent_level: int):
         self._write(f"{MAT_VAR} = bpy.data.materials.new("
                     f"name = {str_to_py_str(self.material_name)})", indent_level)
-        self._write(f"{MAT_VAR}.use_nodes = True\n\n", indent_level)
+        self._write("if bpy.app.version < (5, 0, 0):", indent_level)
+        self._write(f"{MAT_VAR}.use_nodes = True\n\n", indent_level + 1)
 
     def _initialize_shader_node_tree(self, ntp_node_tree: NTP_ShaderNodeTree, 
                                     nt_name: str) -> None:
