@@ -776,6 +776,11 @@ class NTP_Operator(Operator):
                 structure_type = enum_to_py_str(socket.structure_type)
                 self._write(f"{socket_var}.structure_type = {structure_type}")
 
+            if bpy.app.version >= (5, 0, 0):
+                # optional label
+                if socket.optional_label:
+                    self._write(f"{socket_var}.optional_label = True")
+
             self._write("", 0)
 
         def _create_panel(self, panel: NodeTreeInterfacePanel, 
