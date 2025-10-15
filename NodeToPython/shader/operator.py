@@ -6,7 +6,7 @@ from io import StringIO
 
 from ..utils import *
 from ..ntp_operator import NTP_Operator
-from ..ntp_node_tree import NTP_NodeTree
+from .node_tree import NTP_ShaderNodeTree
 from ..node_settings import node_settings
 
 MAT_VAR = "mat"
@@ -30,15 +30,16 @@ class NTP_OT_Shader(NTP_Operator):
     def _create_material(self, indent_level: int):
         self._write(f"{MAT_VAR} = bpy.data.materials.new("
                     f"name = {str_to_py_str(self.material_name)})", indent_level)
-        self._write(f"{MAT_VAR}.use_nodes = True\n\n", indent_level)
+        self._write("if bpy.app.version < (5, 0, 0):", indent_level)
+        self._write(f"{MAT_VAR}.use_nodes = True\n\n", indent_level + 1)
 
-    def _initialize_shader_node_tree(self, ntp_node_tree: NTP_NodeTree, 
+    def _initialize_shader_node_tree(self, ntp_node_tree: NTP_ShaderNodeTree, 
                                     nt_name: str) -> None:
         """
         Initialize the shader node group
 
         Parameters:
-        ntp_node_tree (NTP_NodeTree): node tree to be generated and 
+        ntp_node_tree (NTP_ShaderNodeTree): node tree to be generated and 
             variable to use
         nt_name (str): name to use for the node tree
         """
@@ -56,13 +57,13 @@ class NTP_OT_Shader(NTP_Operator):
                          f"name = {str_to_py_str(nt_name)})"))
             self._write("", 0)
 
-    def _process_node(self, node: Node, ntp_nt: NTP_NodeTree) -> None:
+    def _process_node(self, node: Node, ntp_nt: NTP_ShaderNodeTree) -> None:
         """
         Create node and set settings, defaults, and cosmetics
 
         Parameters:
         node (Node): node to process
-        ntp_nt (NTP_NodeTree): the node tree that node belongs to
+        ntp_nt (NTP_ShaderNodeTree): the node tree that node belongs to
         """
         node_var: str = self._create_node(node, ntp_nt.var)
         self._set_settings_defaults(node)
@@ -75,9 +76,37 @@ class NTP_OT_Shader(NTP_Operator):
             elif node.bl_idname == 'NodeGroupOutput' and not ntp_nt.outputs_set:
                 self._group_io_settings(node, "output", ntp_nt)
                 ntp_nt.outputs_set = True
+        
+        if node.bl_idname in ntp_nt.zone_inputs:
+            ntp_nt.zone_inputs[node.bl_idname].append(node)
 
         self._hide_hidden_sockets(node)
-        self._set_socket_defaults(node)
+        if node.bl_idname not in ntp_nt.zone_inputs:
+            self._set_socket_defaults(node)
+
+    if bpy.app.version >= (5, 0, 0):
+        def _process_zones(self, zone_input_list: list[bpy.types.Node]) -> None:
+            """
+            Recreates a zone
+            zone_input_list (list[bpy.types.Node]): list of zone input 
+                nodes
+            """
+            for input_node in zone_input_list:
+                zone_output = input_node.paired_output
+
+                zone_input_var = self._node_vars[input_node]
+                zone_output_var = self._node_vars[zone_output]
+
+                self._write(f"# Process zone input {input_node.name}")
+                self._write(f"{zone_input_var}.pair_with_output"
+                            f"({zone_output_var})")
+
+                #must set defaults after paired with output
+                self._set_socket_defaults(input_node)
+                self._set_socket_defaults(zone_output)
+
+            if zone_input_list:
+                self._write("", 0)
 
     def _process_node_tree(self, node_tree: ShaderNodeTree) -> None:
         """
@@ -98,7 +127,7 @@ class NTP_OT_Shader(NTP_Operator):
 
         self._node_tree_vars[node_tree] = nt_var
 
-        ntp_nt = NTP_NodeTree(node_tree, nt_var)
+        ntp_nt = NTP_ShaderNodeTree(node_tree, nt_var)
 
         self._initialize_shader_node_tree(ntp_nt, nt_name)
 
@@ -109,9 +138,11 @@ class NTP_OT_Shader(NTP_Operator):
 
         #initialize nodes
         self._write(f"# Initialize {nt_var} nodes\n")
-
         for node in node_tree.nodes:
             self._process_node(node, ntp_nt)
+
+        for zone_list in ntp_nt.zone_inputs.values():
+            self._process_zones(zone_list)
 
         #set look of nodes
         self._set_parents(node_tree)

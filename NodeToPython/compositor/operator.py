@@ -51,7 +51,8 @@ class NTP_OT_Compositor(NTP_Operator):
                     indent_level + 2)
         self._write(f"{INDEX} += 1\n", indent_level + 2)
 
-        self._write(f"{SCENE} = bpy.context.window.scene.copy()\n", indent_level) 
+        self._write(f"bpy.ops.scene.new(type='NEW')", indent_level)
+        self._write(f"{SCENE} = bpy.context.scene", indent_level)
         self._write(f"{SCENE}.name = {END_NAME}", indent_level)
         self._write(f"{SCENE}.use_fake_user = True", indent_level)
         self._write(f"bpy.context.window.scene = {SCENE}", indent_level)
@@ -63,11 +64,22 @@ class NTP_OT_Compositor(NTP_Operator):
         self._write(f'"""Initialize {nt_name} node group"""')
 
         if ntp_nt.node_tree == self._base_node_tree and self.is_scene:
-            self._write(f"{ntp_nt.var} = {SCENE}.node_tree")
+            self._write("if bpy.app.version < (5, 0, 0):")
+            self._write(f"{ntp_nt.var} = {SCENE}.node_tree",
+                        self._inner_indent_level + 1)
+            self._write("else:")
+            self._write((f"{SCENE}.compositing_node_group = "
+                         f"bpy.data.node_groups.new("
+                         f"type = \'CompositorNodeTree\', "
+                         f"name = {str_to_py_str(nt_name)})"),
+                         self._inner_indent_level + 1)
+            self._write(f"{ntp_nt.var} = {SCENE}.compositing_node_group",
+                        self._inner_indent_level + 1)
             self._write("", 0)
             self._write(f"# Start with a clean node tree")
             self._write(f"for {NODE} in {ntp_nt.var}.nodes:")
-            self._write(f"{ntp_nt.var}.nodes.remove({NODE})", self._inner_indent_level + 1)
+            self._write(f"{ntp_nt.var}.nodes.remove({NODE})", 
+                        self._inner_indent_level + 1)
         else:
             self._write((f"{ntp_nt.var} = bpy.data.node_groups.new("
                          f"type = \'CompositorNodeTree\', "
@@ -215,7 +227,11 @@ class NTP_OT_Compositor(NTP_Operator):
 
         #find node group to replicate
         if self.is_scene:
-            self._base_node_tree = bpy.data.scenes[self.compositor_name].node_tree
+            scene = bpy.data.scenes[self.compositor_name]
+            if bpy.app.version < (5, 0, 0):
+                self._base_node_tree = scene.node_tree
+            else:
+                self._base_node_tree = scene.compositing_node_group
         else:
             self._base_node_tree = bpy.data.node_groups[self.compositor_name]
 

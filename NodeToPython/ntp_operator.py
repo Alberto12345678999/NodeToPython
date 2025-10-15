@@ -36,10 +36,14 @@ RESERVED_NAMES = {
                  }
 
 #node input sockets that are messy to set default values for
-DONT_SET_DEFAULTS = {'NodeSocketGeometry',
-                     'NodeSocketShader',
-                     'NodeSocketMatrix',
-                     'NodeSocketVirtual'}
+DONT_SET_DEFAULTS = {
+    'NodeSocketGeometry',
+    'NodeSocketShader',
+    'NodeSocketMatrix',
+    'NodeSocketVirtual',
+    'NodeSocketBundle',
+    'NodeSocketClosure'
+}
 
 MAX_BLENDER_VERSION = (5, 0, 0)
 
@@ -63,7 +67,8 @@ class NTP_Operator(Operator):
             bpy.types.NodeTreeInterfaceSocketMaterial,
             bpy.types.NodeTreeInterfaceSocketObject,
             bpy.types.NodeTreeInterfaceSocketShader,
-            bpy.types.NodeTreeInterfaceSocketTexture
+            bpy.types.NodeTreeInterfaceSocketTexture,
+            bpy.types.NodeTreeInterfaceSocketClosure
         }
 
     def __init__(self, *args, **kwargs):
@@ -439,34 +444,56 @@ class NTP_Operator(Operator):
                 if self._addon_dir is not None:
                     if attr.source in {'FILE', 'GENERATED', 'TILED'}:
                         if self._save_image(attr):
-                            self._load_image(attr, f"{node_var}.{attr_name}")
+                            self._load_image(attr, setting_str)
                 else:
                     self._set_if_in_blend_file(attr, setting_str, "images")
 
             elif st == ST.IMAGE_USER:
-                self._image_user_settings(attr, f"{node_var}.{attr_name}")
+                self._image_user_settings(attr, setting_str)
             elif st == ST.SIM_OUTPUT_ITEMS:
-                self._output_zone_items(attr, f"{node_var}.{attr_name}", True)
+                self._output_zone_items(attr, setting_str, True)
             elif st == ST.REPEAT_OUTPUT_ITEMS:
-                self._output_zone_items(attr, f"{node_var}.{attr_name}", False)
+                self._output_zone_items(attr, setting_str, False)
             elif st == ST.INDEX_SWITCH_ITEMS:
-                self._index_switch_items(attr, f"{node_var}.{attr_name}")
+                self._index_switch_items(attr, setting_str)
             elif st == ST.ENUM_DEFINITION:
-                self._enum_definition(attr, f"{node_var}.{attr_name}")
+                self._enum_definition(attr, setting_str)
             elif st == ST.BAKE_ITEMS:
-                self._bake_items(attr, f"{node_var}.{attr_name}")
+                self._bake_items(attr, setting_str)
             elif st == ST.CAPTURE_ATTRIBUTE_ITEMS:
-                self._capture_attribute_items(attr, f"{node_var}.{attr_name}")
+                self._capture_attribute_items(attr, setting_str)
             elif st == ST.MENU_SWITCH_ITEMS:
-                self._menu_switch_items(attr, f"{node_var}.{attr_name}")
+                self._menu_switch_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_GENERATION_ITEMS:
-                self._foreach_geo_element_generation_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_generation_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_INPUT_ITEMS:
-                self._foreach_geo_element_input_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_input_items(attr, setting_str)
             elif st == ST.FOREACH_GEO_ELEMENT_MAIN_ITEMS:
-                self._foreach_geo_element_main_items(attr, f"{node_var}.{attr_name}")
+                self._foreach_geo_element_main_items(attr, setting_str)
             elif st == ST.FORMAT_STRING_ITEMS:
-                self._format_string_items(attr, f"{node_var}.{attr_name}")
+                self._format_string_items(attr, setting_str)
+            elif st == ST.CLOSURE_INPUT_ITEMS:
+                self._closure_input_items(attr, setting_str)
+            elif st == ST.CLOSURE_OUTPUT_ITEMS:
+                self._closure_output_items(attr, setting_str)
+            elif st == ST.COLOR_MANAGED_DISPLAY_SETTINGS:
+                self._color_managed_display_settings(attr, setting_str)
+            elif st == ST.COLOR_MANAGED_VIEW_SETTINGS:
+                self._color_managed_view_settings(attr, setting_str)
+            elif st == ST.COMPOSITOR_FILE_OUTPUT_ITEMS:
+                self._compositor_file_output_items(attr, setting_str)
+            elif st == ST.EVALUATE_CLOSURE_INPUT_ITEMS:
+                self._evaluate_closure_input_items(attr, setting_str)
+            elif st == ST.EVALUATE_CLOSURE_OUTPUT_ITEMS:
+                self._evaluate_closure_output_items(attr, setting_str)
+            elif st == ST.FIELD_TO_GRID_ITEMS:
+                self._field_to_grid_items(attr, setting_str)
+            elif st == ST.GEOMETRY_VIEWER_ITEMS:
+                self._geometry_viewer_items(attr, setting_str)
+            elif st == ST.COMBINE_BUNDLE_ITEMS:
+                self._combine_bundle_items(attr, setting_str)
+            elif st == ST.SEPARATE_BUNDLE_ITEMS:
+                self._separate_bundle_items(attr, setting_str)
 
     if bpy.app.version < (4, 0, 0):
         def _set_group_socket_defaults(self, socket_interface: NodeSocketInterface,
@@ -608,12 +635,19 @@ class NTP_Operator(Operator):
                     return
             if type(socket_interface) == bpy.types.NodeTreeInterfaceSocketColor:
                 dv = vec4_to_py_str(dv)
-            elif type(dv) in {mathutils.Vector, mathutils.Euler}:
+            elif type(dv) == mathutils.Euler:
                 dv = vec3_to_py_str(dv)
             elif type(dv) == bpy_prop_array:
                 dv = array_to_py_str(dv)
             elif type(dv) == str:
                 dv = str_to_py_str(dv)
+            elif type(dv) == mathutils.Vector:
+                if len(dv) == 2:
+                    dv = vec2_to_py_str(dv)
+                elif len(dv) == 3:
+                    dv = vec3_to_py_str(dv)
+                elif len(dv) == 4:
+                    dv = vec4_to_py_str(dv)
             self._write(f"{socket_var}.default_value = {dv}")
 
             # min value
@@ -741,6 +775,11 @@ class NTP_Operator(Operator):
                 # structure type
                 structure_type = enum_to_py_str(socket.structure_type)
                 self._write(f"{socket_var}.structure_type = {structure_type}")
+
+            if bpy.app.version >= (5, 0, 0):
+                # optional label
+                if socket.optional_label:
+                    self._write(f"{socket_var}.optional_label = True")
 
             self._write("", 0)
 
@@ -1401,13 +1440,183 @@ class NTP_Operator(Operator):
 
     if bpy.app.version >= (4, 5, 0):
         def _format_string_items(self,
-                          format_items : bpy.types.NodeFunctionFormatStringItems,
-                          format_items_str: str) -> None:
+            format_items : bpy.types.NodeFunctionFormatStringItems,
+            format_items_str: str
+        ) -> None:
             self._write(f"{format_items_str}.clear()")
             for i, item in enumerate(format_items):
                 socket_type = enum_to_py_str(item.socket_type)
                 name_str = str_to_py_str(item.name)
                 self._write(f"{format_items_str}.new({socket_type}, {name_str})")
+
+    if bpy.app.version >= (5, 0, 0):
+        def _closure_input_items(self,
+            closure_input_items : bpy.types.NodeClosureInputItems,
+            closure_input_items_str : str
+        ) -> None:
+            self._write(f"{closure_input_items_str}.clear()")
+            for i, item in enumerate(closure_input_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{closure_input_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{closure_input_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+
+        def _closure_output_items(self,
+            closure_output_items : bpy.types.NodeClosureOutputItems,
+            closure_output_items_str : str
+        ) -> None:
+            self._write(f"{closure_output_items_str}.clear()")
+            for i, item in enumerate(closure_output_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{closure_output_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{closure_output_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+
+        def _evaluate_closure_input_items(self,
+            evaluate_closure_input_items : bpy.types.NodeEvaluateClosureInputItems,
+            evaluate_closure_input_items_str : str
+        ) -> None:
+            self._write(f"{evaluate_closure_input_items_str}.clear()")
+            for i, item in enumerate(evaluate_closure_input_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{evaluate_closure_input_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{evaluate_closure_input_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+
+        def _evaluate_closure_output_items(self,
+            evaluate_closure_output_items : bpy.types.NodeEvaluateClosureOutputItems,
+            evaluate_closure_output_items_str : str
+        ) -> None:
+            self._write(f"{evaluate_closure_output_items_str}.clear()")
+            for i, item in enumerate(evaluate_closure_output_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{evaluate_closure_output_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{evaluate_closure_output_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+        
+        def _combine_bundle_items(self,
+            combine_bundle_items : bpy.types.NodeCombineBundleItems,
+            combine_bundle_items_str : str
+        ) -> None:
+            self._write(f"{combine_bundle_items_str}.clear()")
+            for i, item in enumerate(combine_bundle_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{combine_bundle_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{combine_bundle_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+
+        def _separate_bundle_items(self,
+            separate_bundle_items: bpy.types.NodeSeparateBundleItems,
+            separate_bundle_items_str : str,
+        ) -> None:
+            self._write(f"{separate_bundle_items_str}.clear()")
+            for i, item in enumerate(separate_bundle_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{separate_bundle_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                item_str = f"{separate_bundle_items_str}[{i}]"
+
+                structure_type = enum_to_py_str(item.structure_type)
+                self._write(f"{item_str}.structure_type = {structure_type}")
+
+        def _field_to_grid_items(self,
+            field_to_grid_items: bpy.types.GeometryNodeFieldToGridItems,
+            field_to_grid_items_str : str,
+        ) -> None:
+            self._write(f"{field_to_grid_items_str}.clear()")
+            for i, item in enumerate(field_to_grid_items):
+                data_type = enum_to_py_str(item.data_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{field_to_grid_items_str}.new("
+                             f"{data_type}, {name_str})"))
+                
+        def _geometry_viewer_items(self,
+            geometry_viewer_items: bpy.types.NodeGeometryViewerItems,
+            geometry_viewer_items_str : str,
+        ) -> None:
+            self._write(f"{geometry_viewer_items_str}.clear()")
+            for i, item in enumerate(geometry_viewer_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{geometry_viewer_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                items_str = f"{geometry_viewer_items_str}[{i}]"
+                
+                # auto remove will automatically remove input if not linked
+                # need to initialize after links
+                auto_remove_str = f"{items_str}.auto_remove = {item.auto_remove}"
+                self._write_after_links.append(
+                    lambda _auto_remove_str = auto_remove_str: (
+                        self._write(_auto_remove_str)
+                    )
+                )
+        
+        def _compositor_file_output_items(self,
+            compositor_file_output_items: bpy.types.NodeCompositorFileOutputItems,
+            compositor_file_output_items_str : str,
+        ) -> None:
+            self._write(f"{compositor_file_output_items_str}.clear()")
+            for i, item in enumerate(compositor_file_output_items):
+                socket_type = enum_to_py_str(item.socket_type)
+                name_str = str_to_py_str(item.name)
+                self._write((f"{compositor_file_output_items_str}.new("
+                             f"{socket_type}, {name_str})"))
+                
+                items_str = f"{compositor_file_output_items_str}[{i}]"
+                
+                self._write(f"{items_str}.override_node_format = {item.override_node_format}")
+                self._write(f"{items_str}.save_as_render = {item.save_as_render}")
+                if item.socket_type == 'VECTOR':
+                    self._write(f"{items_str}.vector_socket_dimensions = "
+                                f"{item.vector_socket_dimensions}")
+                    
+        def _color_managed_display_settings(self,
+            display_settings : bpy.types.ColorManagedDisplaySettings,
+            display_settings_str : str
+        ) -> None:
+            device_str = enum_to_py_str(display_settings.display_device)
+            self._write(f"{display_settings_str}.display_device = {device_str}")
+            emulation_str = enum_to_py_str(display_settings.emulation)
+            self._write(f"{display_settings_str}.emulation = {emulation_str}")
+    
+        def _color_managed_view_settings(self,
+            view_settings : bpy.types.ColorManagedViewSettings,
+            view_settings_str : str
+        ) -> None:
+            # view transform must go before setting look
+            view_transform_str = enum_to_py_str(view_settings.view_transform)
+            self._write(f"{view_settings_str}.view_transform = {view_transform_str}")
+
+            look_str = enum_to_py_str(view_settings.look)
+            self._write(f"{view_settings_str}.look = {look_str}")
 
 
     def _set_parents(self, node_tree: NodeTree) -> None:
