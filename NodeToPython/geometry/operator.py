@@ -106,6 +106,14 @@ class NTP_OT_GeometryNodes(NTP_Operator):
                 for flag in tool_flags:
                     if hasattr(node_tree, flag) is True:
                         self._write(f"{nt_var}.{flag} = {getattr(node_tree, flag)}")
+
+            if bpy.app.version >= (4, 2, 0):
+                if node_tree.use_wait_for_click:
+                    self._write(f"{nt_var}.use_wait_for_click = True")
+                    
+            if bpy.app.version >= (5, 0, 0):
+                if node_tree.show_modifier_manage_panel:
+                    self._write(f"{nt_var}.show_modifier_manager_panel = True")
             self._write("", 0)
 
     def _process_node_tree(self, node_tree: GeometryNodeTree) -> None:
