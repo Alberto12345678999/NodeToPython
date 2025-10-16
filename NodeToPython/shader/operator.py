@@ -36,11 +36,17 @@ class NTP_OT_Shader(NTP_Operator):
         for name in SHADER_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
     
-    def _create_material(self, indent_level: int, mat_var: str):
-        self._write(f"{mat_var} = bpy.data.materials.new("
+    def _create_material(self):
+        indent_level: int = 0
+        if self._mode == 'ADDON':
+            indent_level = 2
+        elif self._mode == 'SCRIPT':
+            indent_level = 0
+        
+        self._write(f"{self.obj_var} = bpy.data.materials.new("
                     f"name = {str_to_py_str(self.name)})", indent_level)
         self._write("if bpy.app.version < (5, 0, 0):", indent_level)
-        self._write(f"{mat_var}.use_nodes = True\n\n", indent_level + 1)
+        self._write(f"{self.obj_var}.use_nodes = True\n\n", indent_level + 1)
 
     def _initialize_shader_node_tree(self, 
         ntp_node_tree: NTP_ShaderNodeTree, 
@@ -209,10 +215,7 @@ class NTP_OT_Shader(NTP_Operator):
                 self._file.write("import bpy\nimport mathutils\n\n\n")
 
         if self.group_type == 'MATERIAL':
-            if self._mode == 'ADDON':
-                self._create_material(2, self.obj_var)
-            elif self._mode == 'SCRIPT':
-                self._create_material(0, self.obj_var)   
+            self._create_material()
         
         node_trees_to_process = self._topological_sort(self._base_node_tree)
 
