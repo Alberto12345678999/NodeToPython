@@ -9,32 +9,43 @@ from ..ntp_operator import NTP_Operator
 from .node_tree import NTP_ShaderNodeTree
 from ..node_settings import node_settings
 
-MAT_VAR = "mat"
 NODE = "node"
-SHADER_OP_RESERVED_NAMES = {MAT_VAR, NODE}
+SHADER_OP_RESERVED_NAMES = {NODE}
 
 class NTP_OT_Shader(NTP_Operator):
     bl_idname = "ntp.shader"
     bl_label =  "Shader to Python"
     bl_options = {'REGISTER', 'UNDO'}
     
-    #TODO: add option for general shader node groups
-    material_name: bpy.props.StringProperty(name="Node Group")
+    name: bpy.props.StringProperty(name="Node Group")
+    group_type : bpy.props.EnumProperty(
+        name = "Group Type",
+        items=[
+            ('MATERIAL', "Material", "Material"),
+            ('NODE_GROUP', "Node Group", "Node group (typically a sub-group of a graph)"),
+            ('LIGHT', "Light", "Light"),
+            ('LINE_STYLE', "Line Style", "Line Style"),
+            ('WORLD', "World", "World")
+        ]
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._node_infos = node_settings
+        self.obj_var : str = ""
         for name in SHADER_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
     
-    def _create_material(self, indent_level: int):
-        self._write(f"{MAT_VAR} = bpy.data.materials.new("
-                    f"name = {str_to_py_str(self.material_name)})", indent_level)
+    def _create_material(self, indent_level: int, mat_var: str):
+        self._write(f"{mat_var} = bpy.data.materials.new("
+                    f"name = {str_to_py_str(self.name)})", indent_level)
         self._write("if bpy.app.version < (5, 0, 0):", indent_level)
-        self._write(f"{MAT_VAR}.use_nodes = True\n\n", indent_level + 1)
+        self._write(f"{mat_var}.use_nodes = True\n\n", indent_level + 1)
 
-    def _initialize_shader_node_tree(self, ntp_node_tree: NTP_ShaderNodeTree, 
-                                    nt_name: str) -> None:
+    def _initialize_shader_node_tree(self, 
+        ntp_node_tree: NTP_ShaderNodeTree, 
+        nt_name: str
+    ) -> None:
         """
         Initialize the shader node group
 
@@ -47,7 +58,7 @@ class NTP_OT_Shader(NTP_Operator):
         self._write(f'"""Initialize {nt_name} node group"""')
 
         if ntp_node_tree.node_tree == self._base_node_tree:
-            self._write(f"{ntp_node_tree.var} = {MAT_VAR}.node_tree\n")
+            self._write(f"{ntp_node_tree.var} = {self.obj_var}.node_tree\n")
             self._write(f"# Start with a clean node tree")
             self._write(f"for {NODE} in {ntp_node_tree.var}.nodes:")
             self._write(f"{ntp_node_tree.var}.nodes.remove({NODE})", self._inner_indent_level + 1)
@@ -118,12 +129,8 @@ class NTP_OT_Shader(NTP_Operator):
             node groups within node groups and script/add-on differences
         """
 
-        if node_tree == self._base_node_tree:
-            nt_var = self._create_var(self.material_name)
-            nt_name = self.material_name #TODO: this is probably overcomplicating things if we move to a harder material vs shader node tree difference
-        else:
-            nt_var = self._create_var(node_tree.name)
-            nt_name = node_tree.name
+        nt_var = self._create_var(node_tree.name)
+        nt_name = node_tree.name
 
         self._node_tree_vars[node_tree] = nt_var
 
@@ -163,27 +170,37 @@ class NTP_OT_Shader(NTP_Operator):
             return {'CANCELLED'}
         
         #find node group to replicate
-        self._base_node_tree = bpy.data.materials[self.material_name].node_tree
+        if self.group_type == 'MATERIAL':
+            self._base_node_tree = bpy.data.materials[self.name].node_tree
+        elif self.group_type == 'NODE_GROUP':
+            self._base_node_tree = bpy.data.node_groups[self.name]
+        elif self.group_type == 'LIGHT':
+            self._base_node_tree = bpy.data.lights[self.name].node_tree
+        elif self.group_type == 'LINE_STYLE':
+            self._base_node_tree = bpy.data.linestyles[self.name].node_tree
+        elif self.group_type == 'WORLD':
+            self._base_node_tree = bpy.data.worlds[self.name].node_tree
+
         if self._base_node_tree is None:
             self.report({'ERROR'}, ("NodeToPython: This doesn't seem to be a "
                                     "valid material. Is Use Nodes selected?"))
             return {'CANCELLED'}
 
         #set up names to use in generated addon
-        mat_var = clean_string(self.material_name)
+        self.obj_var = clean_string(self.name)
         
         if self._mode == 'ADDON':
             self._outer_indent_level = 2
             self._inner_indent_level = 3
 
-            if not self._setup_addon_directories(context, mat_var):
+            if not self._setup_addon_directories(context, self.obj_var):
                 return {'CANCELLED'}
 
             self._file = open(f"{self._addon_dir}/__init__.py", "w")
 
-            self._create_header(self.material_name)
-            self._class_name = clean_string(self.material_name, lower=False)
-            self._init_operator(mat_var, self.material_name)
+            self._create_header(self.name)
+            self._class_name = clean_string(self.name, lower=False)
+            self._init_operator(self.obj_var, self.name)
 
             self._write("def execute(self, context):", 1)
         else:
@@ -191,10 +208,11 @@ class NTP_OT_Shader(NTP_Operator):
             if self._include_imports:
                 self._file.write("import bpy\nimport mathutils\n\n\n")
 
-        if self._mode == 'ADDON':
-            self._create_material(2)
-        elif self._mode == 'SCRIPT':
-            self._create_material(0)   
+        if self.group_type == 'MATERIAL':
+            if self._mode == 'ADDON':
+                self._create_material(2, self.obj_var)
+            elif self._mode == 'SCRIPT':
+                self._create_material(0, self.obj_var)   
         
         node_trees_to_process = self._topological_sort(self._base_node_tree)
 

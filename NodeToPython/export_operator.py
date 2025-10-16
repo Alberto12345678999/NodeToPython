@@ -106,13 +106,15 @@ class NTP_OT_Export(bpy.types.Operator):
         elif group_type == NodeGroupType.GEOMETRY_NODE_GROUP:
             bpy.ops.ntp.geometry_nodes(geo_nodes_group_name=obj.name)
         elif group_type == NodeGroupType.LIGHT:
-            pass
+            bpy.ops.ntp.shader(name=obj.name, group_type='LIGHT')
+        elif group_type == NodeGroupType.LINE_STYLE:
+            bpy.ops.ntp.shader(name=obj.name, group_type='LINE_STYLE')
         elif group_type == NodeGroupType.MATERIAL:
-            bpy.ops.ntp.shader(material_name=obj.name)
+            bpy.ops.ntp.shader(name=obj.name, group_type='MATERIAL')
         elif group_type == NodeGroupType.SHADER_NODE_GROUP:
-            pass
+            bpy.ops.ntp.shader(name=obj.name, group_type='NODE_GROUP')
         elif group_type == NodeGroupType.WORLD:
-            pass
+            bpy.ops.ntp.shader(name=obj.name, group_type='WORLD')
 
         return {'FINISHED'}
     

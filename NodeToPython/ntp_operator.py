@@ -179,13 +179,13 @@ class NTP_Operator(Operator):
                 return False
         return True
 
-    def _setup_addon_directories(self, context: Context, nt_var: str) -> bool:
+    def _setup_addon_directories(self, context: Context, obj_var: str) -> bool:
         """
         Finds/creates directories to save add-on to
 
         Parameters:
         context (Context): the current scene context
-        nt_var (str): variable name of the ndoe tree
+        obj_var (str): variable name of the object
 
         Returns:
         (bool): success of addon directory setup
@@ -196,8 +196,8 @@ class NTP_Operator(Operator):
                          "one in the NodeToPython Options panel"))
             return False
 
-        self._zip_dir = os.path.join(self._dir_path, nt_var)
-        self._addon_dir = os.path.join(self._zip_dir, nt_var)
+        self._zip_dir = os.path.join(self._dir_path, obj_var)
+        self._addon_dir = os.path.join(self._zip_dir, obj_var)
 
         if not os.path.exists(self._addon_dir):
             os.makedirs(self._addon_dir)
