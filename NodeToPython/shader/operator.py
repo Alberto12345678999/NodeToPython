@@ -63,7 +63,9 @@ class NTP_OT_Shader(NTP_Operator):
         self._write(f"def {ntp_node_tree.var}_node_group():", self._outer_indent_level)
         self._write(f'"""Initialize {nt_name} node group"""')
 
-        if ntp_node_tree.node_tree == self._base_node_tree:
+        is_base : bool = ntp_node_tree.node_tree == self._base_node_tree
+        is_obj : bool =  self.group_type != 'NODE_GROUP'
+        if is_base and is_obj:
             self._write(f"{ntp_node_tree.var} = {self.obj_var}.node_tree\n")
             self._write(f"# Start with a clean node tree")
             self._write(f"for {NODE} in {ntp_node_tree.var}.nodes:")
