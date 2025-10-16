@@ -10,7 +10,8 @@ from .node_tree import NTP_ShaderNodeTree
 from ..node_settings import node_settings
 
 NODE = "node"
-SHADER_OP_RESERVED_NAMES = {NODE}
+LIGHT_OBJ = "light_obj"
+SHADER_OP_RESERVED_NAMES = {NODE, LIGHT_OBJ}
 
 class NTP_OT_Shader(NTP_Operator):
     bl_idname = "ntp.shader"
@@ -33,6 +34,13 @@ class NTP_OT_Shader(NTP_Operator):
         super().__init__(*args, **kwargs)
         self._node_infos = node_settings
         self.obj_var : str = ""
+        self.obj : (
+            bpy.types.Material |
+            bpy.types.Light |
+            bpy.types.FreestyleLineStyle |
+            bpy.types.World |
+            None
+        ) = None
         for name in SHADER_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
     
@@ -47,6 +55,36 @@ class NTP_OT_Shader(NTP_Operator):
                     f"name = {str_to_py_str(self.name)})", indent_level)
         self._write("if bpy.app.version < (5, 0, 0):", indent_level)
         self._write(f"{self.obj_var}.use_nodes = True\n\n", indent_level + 1)
+
+        #TODO: other material settings
+    
+    def _create_light(self):
+        indent_level: int = 0
+        if self._mode == 'ADDON':
+            indent_level = 2
+        elif self._mode == 'SCRIPT':
+            indent_level = 0
+        
+        self._write(
+            f"{self.obj_var} = bpy.data.lights.new("
+            f"name = {str_to_py_str(self.name)}, "
+            f"type = {enum_to_py_str(self.obj.type)})",
+            indent_level
+        )
+        self._write(f"{self.obj_var}.use_nodes = True\n\n", indent_level)
+        self._write(
+            f"{LIGHT_OBJ} = bpy.data.objects.new("
+            f"name = {str_to_py_str(self.obj.name)}, "
+            f"object_data={self.obj_var})",
+            indent_level
+        )
+        self._write(
+            f"bpy.context.collection.objects.link({LIGHT_OBJ})", 
+            indent_level
+        )
+        #TODO: other light settings
+        
+        self._write("", 0)
 
     def _initialize_shader_node_tree(self, 
         ntp_node_tree: NTP_ShaderNodeTree, 
@@ -179,15 +217,18 @@ class NTP_OT_Shader(NTP_Operator):
         
         #find node group to replicate
         if self.group_type == 'MATERIAL':
-            self._base_node_tree = bpy.data.materials[self.name].node_tree
-        elif self.group_type == 'NODE_GROUP':
-            self._base_node_tree = bpy.data.node_groups[self.name]
+            self.obj = bpy.data.materials[self.name]
         elif self.group_type == 'LIGHT':
-            self._base_node_tree = bpy.data.lights[self.name].node_tree
+            self.obj = bpy.data.lights[self.name]
         elif self.group_type == 'LINE_STYLE':
-            self._base_node_tree = bpy.data.linestyles[self.name].node_tree
+            self.obj = bpy.data.linestyles[self.name]
         elif self.group_type == 'WORLD':
-            self._base_node_tree = bpy.data.worlds[self.name].node_tree
+            self.obj = bpy.data.worlds[self.name]
+        
+        if self.group_type == 'NODE_GROUP':
+            self._base_node_tree = bpy.data.node_groups[self.name]
+        else:
+            self._base_node_tree = self.obj.node_tree
 
         if self._base_node_tree is None:
             self.report({'ERROR'}, ("NodeToPython: This doesn't seem to be a "
@@ -218,6 +259,8 @@ class NTP_OT_Shader(NTP_Operator):
 
         if self.group_type == 'MATERIAL':
             self._create_material()
+        elif self.group_type == 'LIGHT':
+            self._create_light()
         
         node_trees_to_process = self._topological_sort(self._base_node_tree)
 
