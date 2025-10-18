@@ -86,6 +86,17 @@ class NTP_OT_Shader(NTP_Operator):
         
         self._write("", 0)
 
+    def _create_line_style(self):
+        indent_level: int = 0
+        if self._mode == 'ADDON':
+            indent_level = 2
+        elif self._mode == 'SCRIPT':
+            indent_level = 0
+        
+        self._write(f"{self.obj_var} = bpy.data.linestyles.new("
+                    f"name = {str_to_py_str(self.name)})", indent_level)
+        self._write(f"{self.obj_var}.use_nodes = True\n", indent_level)
+
     def _initialize_shader_node_tree(self, 
         ntp_node_tree: NTP_ShaderNodeTree, 
         nt_name: str
@@ -261,6 +272,8 @@ class NTP_OT_Shader(NTP_Operator):
             self._create_material()
         elif self.group_type == 'LIGHT':
             self._create_light()
+        elif self.group_type == 'LINE_STYLE':
+            self._create_line_style()
         
         node_trees_to_process = self._topological_sort(self._base_node_tree)
 
