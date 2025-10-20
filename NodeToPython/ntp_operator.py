@@ -45,7 +45,7 @@ DONT_SET_DEFAULTS = {
     'NodeSocketClosure'
 }
 
-MAX_BLENDER_VERSION = (5, 0, 0)
+MAX_BLENDER_VERSION = (5, 1, 0)
 
 class NTP_Operator(Operator):
     """
@@ -209,7 +209,6 @@ class NTP_Operator(Operator):
         Sets up the bl_info and imports the Blender API
 
         Parameters:
-        file (TextIO): the file for the generated add-on
         name (str): name of the add-on
         """
 
@@ -238,7 +237,6 @@ class NTP_Operator(Operator):
         Initializes the add-on's operator 
 
         Parameters:
-        file (TextIO): the file for the generated add-on
         name (str): name for the class
         idname (str): name for the operator
         label (str): appearence inside Blender

@@ -254,8 +254,7 @@ class NTP_OT_Shader(NTP_Operator):
             self._base_node_tree = self.obj.node_tree
 
         if self._base_node_tree is None:
-            self.report({'ERROR'}, ("NodeToPython: This doesn't seem to be a "
-                                    "valid material. Is Use Nodes selected?"))
+            self.report({'ERROR'}, ("NodeToPython: Couldn't find base node tree"))
             return {'CANCELLED'}
 
         #set up names to use in generated addon
