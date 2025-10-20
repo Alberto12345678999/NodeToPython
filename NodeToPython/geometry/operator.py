@@ -196,14 +196,15 @@ class NTP_OT_GeometryNodes(NTP_Operator):
 
             self._file = open(f"{self._addon_dir}/__init__.py", "w")
             
-            self._create_header(nt.name)
+            self._create_bl_info(nt.name)
+            self._create_imports()
             self._class_name = clean_string(nt.name, lower = False)
             self._init_operator(nt_var, nt.name)
             self._write("def execute(self, context):", 1)
         else:
             self._file = StringIO("")
             if self._include_imports:
-                self._file.write("import bpy\nimport mathutils\n\n\n")
+                self._create_imports()
 
 
         node_trees_to_process = self._topological_sort(nt)

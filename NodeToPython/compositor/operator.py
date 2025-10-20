@@ -254,7 +254,8 @@ class NTP_OT_Compositor(NTP_Operator):
 
             self._file = open(f"{self._addon_dir}/__init__.py", "w")
 
-            self._create_header(self.compositor_name)
+            self._create_bl_info(self.compositor_name)
+            self._create_imports()
             self._class_name = clean_string(self.compositor_name, lower=False)
             self._init_operator(comp_var, self.compositor_name)
 
@@ -262,7 +263,7 @@ class NTP_OT_Compositor(NTP_Operator):
         else:
             self._file = StringIO("")
             if self._include_imports:
-                self._file.write("import bpy\nimport mathutils\n\n\n")
+                self._create_imports()
 
         if self.is_scene:
             if self._mode == 'ADDON':

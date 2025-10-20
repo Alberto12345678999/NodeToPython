@@ -204,7 +204,7 @@ class NTP_Operator(Operator):
         
         return True
 
-    def _create_header(self, name: str) -> None:
+    def _create_bl_info(self, name: str) -> None:
         """
         Sets up the bl_info and imports the Blender API
 
@@ -228,9 +228,12 @@ class NTP_Operator(Operator):
             category = self._custom_category
         self._write(f"\"category\" : {str_to_py_str(category)},", 1)
         self._write("}\n", 0)
+
+    def _create_imports(self) -> None:
         self._write("import bpy", 0)
         self._write("import mathutils", 0)
-        self._write("import os\n", 0)
+        self._write("import os", 0)
+        self._write("\n", 0)
 
     def _init_operator(self, idname: str, label: str) -> None:
         """
