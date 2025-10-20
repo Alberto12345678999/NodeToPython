@@ -290,6 +290,12 @@ class NTP_Operator(Operator):
                 for group_node in [node for node in nt.nodes
                                    if node.bl_idname == group_node_type]:
                     if group_node.node_tree not in visited:
+                        if group_node.node_tree is None:
+                            self.report(
+                                {'ERROR'}, 
+                                "NodeToPython: Found an invalid node tree. "
+                                "Are all data blocks valid?"
+                            )
                         dfs(group_node.node_tree)
                 result.append(nt)
         
@@ -1211,13 +1217,17 @@ class NTP_Operator(Operator):
         node_tree = getattr(node, attr_name)
         if node_tree is None:
             return
+        
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]
             node_var = self._node_vars[node]
             self._write(f"{node_var}.{attr_name} = {nt_var}")
         else:
-            self.report({'WARNING'}, (f"NodeToPython: Node tree dependency graph " 
-                                    f"wasn't properly initialized"))
+            self.report(
+                {'WARNING'}, 
+                f"NodeToPython: Node tree dependency graph " 
+                f"wasn't properly initialized! Couldn't find "
+                f"node tree {node_tree.name}")
 
     def _save_image(self, img: bpy.types.Image) -> bool:
         """
