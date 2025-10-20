@@ -209,6 +209,8 @@ class NTP_OT_GeometryNodes(NTP_Operator):
 
         node_trees_to_process = self._topological_sort(nt)
 
+        self._import_essential_libs()
+
         for node_tree in node_trees_to_process:  
             self._process_node_tree(node_tree)
 
