@@ -113,7 +113,7 @@ class NTP_OT_GeometryNodes(NTP_Operator):
                     
             if bpy.app.version >= (5, 0, 0):
                 if node_tree.show_modifier_manage_panel:
-                    self._write(f"{nt_var}.show_modifier_manager_panel = True")
+                    self._write(f"{nt_var}.show_modifier_manage_panel = True")
             self._write("", 0)
 
     def _process_node_tree(self, node_tree: GeometryNodeTree) -> None:
