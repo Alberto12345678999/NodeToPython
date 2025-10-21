@@ -269,7 +269,8 @@ class NTP_OT_Shader(NTP_Operator):
 
             self._file = open(f"{self._addon_dir}/__init__.py", "w")
 
-            self._create_header(self.name)
+            self._create_bl_info(self.name)
+            self._create_imports()
             self._class_name = clean_string(self.name, lower=False)
             self._init_operator(self.obj_var, self.name)
 
@@ -277,7 +278,7 @@ class NTP_OT_Shader(NTP_Operator):
         else:
             self._file = StringIO("")
             if self._include_imports:
-                self._file.write("import bpy\nimport mathutils\n\n\n")
+                self._create_imports()
 
         if self.group_type == 'MATERIAL':
             self._create_material()
@@ -289,6 +290,8 @@ class NTP_OT_Shader(NTP_Operator):
             self._create_world()
         
         node_trees_to_process = self._topological_sort(self._base_node_tree)
+
+        self._import_essential_libs()
 
         for node_tree in node_trees_to_process:
             self._process_node_tree(node_tree)

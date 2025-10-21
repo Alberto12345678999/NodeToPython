@@ -47,6 +47,12 @@ class NTP_PG_Options(bpy.types.PropertyGroup):
         default = 'SPACES_4'
     )
 
+    link_external_node_groups : bpy.props.BoolProperty(
+        name = "Link External Node Groups",
+        description="Simply tries to link external node groups, otherwise copies",
+        default = True
+    )
+
     if bpy.app.version >= (3, 4, 0):
         set_unavailable_defaults : bpy.props.BoolProperty(
             name = "Set unavailable defaults",

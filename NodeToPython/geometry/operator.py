@@ -113,7 +113,7 @@ class NTP_OT_GeometryNodes(NTP_Operator):
                     
             if bpy.app.version >= (5, 0, 0):
                 if node_tree.show_modifier_manage_panel:
-                    self._write(f"{nt_var}.show_modifier_manager_panel = True")
+                    self._write(f"{nt_var}.show_modifier_manage_panel = True")
             self._write("", 0)
 
     def _process_node_tree(self, node_tree: GeometryNodeTree) -> None:
@@ -196,17 +196,20 @@ class NTP_OT_GeometryNodes(NTP_Operator):
 
             self._file = open(f"{self._addon_dir}/__init__.py", "w")
             
-            self._create_header(nt.name)
+            self._create_bl_info(nt.name)
+            self._create_imports()
             self._class_name = clean_string(nt.name, lower = False)
             self._init_operator(nt_var, nt.name)
             self._write("def execute(self, context):", 1)
         else:
             self._file = StringIO("")
             if self._include_imports:
-                self._file.write("import bpy\nimport mathutils\n\n\n")
+                self._create_imports()
 
 
         node_trees_to_process = self._topological_sort(nt)
+
+        self._import_essential_libs()
 
         for node_tree in node_trees_to_process:  
             self._process_node_tree(node_tree)

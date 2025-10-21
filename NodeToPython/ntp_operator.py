@@ -12,6 +12,7 @@ from bpy.types import bpy_prop_array
 
 import datetime
 import os
+import pathlib
 import shutil
 from typing import TextIO, Callable
 
@@ -26,14 +27,24 @@ IMAGE_DIR_NAME = "imgs"
 IMAGE_PATH = "image_path"
 ITEM = "item"
 BASE_DIR = "base_dir"
+DATAFILES_PATH = "datafiles_path"
+LIB_RELPATH = "lib_relpath"
+LIB_PATH = "lib_path"
+DATA_SRC = "data_src"
+DATA_DST = "data_dst"
 
 RESERVED_NAMES = {
-                  INDEX,
-                  IMAGE_DIR_NAME,
-                  IMAGE_PATH,
-                  ITEM,
-                  BASE_DIR
-                 }
+    INDEX,
+    IMAGE_DIR_NAME,
+    IMAGE_PATH,
+    ITEM,
+    BASE_DIR,
+    DATAFILES_PATH,
+    LIB_RELPATH,
+    LIB_PATH,
+    DATA_SRC,
+    DATA_DST
+}
 
 #node input sockets that are messy to set default values for
 DONT_SET_DEFAULTS = {
@@ -120,6 +131,10 @@ class NTP_Operator(Operator):
         # Indentation string (default four spaces)
         self._indentation = "    "
 
+        self._link_external_node_groups = True
+
+        self._lib_trees: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
+
         if bpy.app.version >= (3, 4, 0):
             # Set default values for hidden sockets
             self._set_unavailable_defaults = False
@@ -153,6 +168,8 @@ class NTP_Operator(Operator):
             self._indentation = "        "
         elif options.indentation_type == 'TABS':
             self._indentation = "\t"
+
+        self._link_external_node_groups = options.link_external_node_groups
 
         if bpy.app.version >= (3, 4, 0):
             self._set_unavailable_defaults = options.set_unavailable_defaults
@@ -204,7 +221,7 @@ class NTP_Operator(Operator):
         
         return True
 
-    def _create_header(self, name: str) -> None:
+    def _create_bl_info(self, name: str) -> None:
         """
         Sets up the bl_info and imports the Blender API
 
@@ -228,9 +245,12 @@ class NTP_Operator(Operator):
             category = self._custom_category
         self._write(f"\"category\" : {str_to_py_str(category)},", 1)
         self._write("}\n", 0)
+
+    def _create_imports(self) -> None:
         self._write("import bpy", 0)
         self._write("import mathutils", 0)
-        self._write("import os\n", 0)
+        self._write("import os", 0)
+        self._write("\n", 0)
 
     def _init_operator(self, idname: str, label: str) -> None:
         """
@@ -282,17 +302,67 @@ class NTP_Operator(Operator):
                 self.report({'ERROR'}, "NodeToPython: Found an invalid node tree. "
                             "Are all data blocks valid?")
                 return
+            
+            if self._link_external_node_groups and nt.library is not None:
+                bpy_lib_path = bpy.path.abspath(nt.library.filepath)
+                lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
+                bpy_datafiles_path = bpy.path.abspath(
+                    bpy.utils.system_resource('DATAFILES')
+                )
+                datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
+                is_lib_essential = lib_path.is_relative_to(datafiles_path)
+
+                if is_lib_essential:
+                    relative_path = lib_path.relative_to(datafiles_path)
+                    if relative_path not in self._lib_trees:
+                        self._lib_trees[relative_path] = []
+                    self._lib_trees[relative_path].append(nt)
+                    return
+                else:
+                    print(f"Library {lib_path} didn't seem essential, copying node groups")
+            
             if nt not in visited:
                 visited.add(nt)
                 for group_node in [node for node in nt.nodes
                                    if node.bl_idname == group_node_type]:
                     if group_node.node_tree not in visited:
+                        if group_node.node_tree is None:
+                            self.report(
+                                {'ERROR'}, 
+                                "NodeToPython: Found an invalid node tree. "
+                                "Are all data blocks valid?"
+                            )
                         dfs(group_node.node_tree)
                 result.append(nt)
         
         dfs(node_tree)
 
         return result
+
+    def _import_essential_libs(self) -> None:
+        self._inner_indent_level -= 1
+        self._write("# Import node groups from Blender essentials library")
+        self._write(f"{DATAFILES_PATH} = bpy.utils.system_resource('DATAFILES')")
+        for path, node_trees in self._lib_trees.items():
+            self._write(f"{LIB_RELPATH} = {str_to_py_str(str(path))}")
+            self._write(f"{LIB_PATH} = os.path.join({DATAFILES_PATH}, {LIB_RELPATH})")
+            self._write(f"with bpy.data.libraries.load({LIB_PATH}, link=True) "
+                        f" as ({DATA_SRC}, {DATA_DST}):")
+            self._write(f"\t{DATA_DST}.node_groups = []")
+            for node_tree in node_trees:
+                name_str = str_to_py_str(node_tree.name)
+                self._write(f"\tif {name_str} in {DATA_SRC}.node_groups:")
+                self._write(f"\t\t{DATA_DST}.node_groups.append({name_str})")
+                # TODO: handle bad case with warning (in both script and addon mode)
+            
+            for i, node_tree in enumerate(node_trees):
+                nt_var = self._create_var(node_tree.name)
+                self._node_tree_vars[node_tree] = nt_var
+                self._write(f"{nt_var} = {DATA_DST}.node_groups[{i}]")
+        self._write("\n")
+        self._inner_indent_level += 1
+            
+
 
     def _create_var(self, name: str) -> str:
         """
@@ -1208,13 +1278,17 @@ class NTP_Operator(Operator):
         node_tree = getattr(node, attr_name)
         if node_tree is None:
             return
+        
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]
             node_var = self._node_vars[node]
             self._write(f"{node_var}.{attr_name} = {nt_var}")
         else:
-            self.report({'WARNING'}, (f"NodeToPython: Node tree dependency graph " 
-                                    f"wasn't properly initialized"))
+            self.report(
+                {'WARNING'}, 
+                f"NodeToPython: Node tree dependency graph " 
+                f"wasn't properly initialized! Couldn't find "
+                f"node tree {node_tree.name}")
 
     def _save_image(self, img: bpy.types.Image) -> bool:
         """
