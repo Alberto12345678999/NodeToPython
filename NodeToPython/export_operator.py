@@ -87,6 +87,7 @@ class NodeGroupGatherer:
 class NTP_OT_Export(bpy.types.Operator):
     bl_idname = "ntp.export"
     bl_label = "Export"
+    bl_description = "Export node group(s) to Python"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context: bpy.types.Context):
