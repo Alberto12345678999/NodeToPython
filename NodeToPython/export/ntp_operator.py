@@ -12,39 +12,14 @@ from .license_templates import license_templates
 from .ntp_options import NTP_PG_Options
 from .utils import *
 
-INDEX = "i"
 IMAGE_DIR_NAME = "imgs"
-IMAGE_PATH = "image_path"
-ITEM = "item"
 BASE_DIR = "base_dir"
-DATAFILES_PATH = "datafiles_path"
-LIB_RELPATH = "lib_relpath"
-LIB_PATH = "lib_path"
-DATA_SRC = "data_src"
-DATA_DST = "data_dst"
 
 RESERVED_NAMES = {
-    INDEX,
     IMAGE_DIR_NAME,
-    IMAGE_PATH,
-    ITEM,
-    BASE_DIR,
-    DATAFILES_PATH,
-    LIB_RELPATH,
-    LIB_PATH,
-    DATA_SRC,
-    DATA_DST
+    BASE_DIR
 }
 
-#node input sockets that are messy to set default values for
-DONT_SET_DEFAULTS = {
-    'NodeSocketGeometry',
-    'NodeSocketShader',
-    'NodeSocketMatrix',
-    'NodeSocketVirtual',
-    'NodeSocketBundle',
-    'NodeSocketClosure'
-}
 
 MAX_BLENDER_VERSION = (5, 1, 0)
 
@@ -53,21 +28,6 @@ class NTP_OT_Export(bpy.types.Operator):
     bl_label = "Export"
     bl_description = "Export node group(s) to Python"
     bl_options = {'REGISTER', 'UNDO'}
-
-    # node tree input sockets that have default properties
-    if bpy.app.version < (4, 0, 0):
-        default_sockets_v3 = {'VALUE', 'INT', 'BOOLEAN', 'VECTOR', 'RGBA'}
-    else:
-        nondefault_sockets_v4 = {
-            bpy.types.NodeTreeInterfaceSocketCollection,
-            bpy.types.NodeTreeInterfaceSocketGeometry,
-            bpy.types.NodeTreeInterfaceSocketImage,
-            bpy.types.NodeTreeInterfaceSocketMaterial,
-            bpy.types.NodeTreeInterfaceSocketObject,
-            bpy.types.NodeTreeInterfaceSocketShader,
-            bpy.types.NodeTreeInterfaceSocketTexture,
-            bpy.types.NodeTreeInterfaceSocketClosure
-        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,8 +67,6 @@ class NTP_OT_Export(bpy.types.Operator):
         self._indentation = "    "
 
         self._link_external_node_groups = True
-
-        self._lib_trees: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
 
         if bpy.app.version >= (3, 4, 0):
             # Set default values for hidden sockets
@@ -157,31 +115,26 @@ class NTP_OT_Export(bpy.types.Operator):
         gatherer = NodeGroupGatherer()
         gatherer.gather_node_groups(context)
 
-        # TODO: multiple node groups
-        if gatherer.get_number_node_groups() != 1:
-            self.report({'ERROR'}, "Can only export one node group currently")
-            return {'CANCELLED'}
-        
-        group_type, obj = gatherer.get_single_node_group()
-
         # Imported here to avoid circular dependency issues
         from .compositor.exporter import CompositorExporter
         from .geometry.exporter import GeometryNodesExporter
         from .shader.exporter import ShaderExporter
 
-        match group_type:
-            case NodeGroupType.COMPOSITOR_NODE_GROUP | NodeGroupType.SCENE:
-                exporter = CompositorExporter(self, obj.name, group_type)
-            case NodeGroupType.GEOMETRY_NODE_GROUP:
-                exporter = GeometryNodesExporter(self, obj.name, group_type)
-            case (  NodeGroupType.LIGHT 
-                  | NodeGroupType.LINE_STYLE
-                  | NodeGroupType.MATERIAL
-                  | NodeGroupType.SHADER_NODE_GROUP
-                  | NodeGroupType.WORLD
-            ):
-                exporter = ShaderExporter(self, obj.name, group_type)
-        exporter.export()
+        for group_type, groups in gatherer.node_groups.items():
+            for obj in groups:
+                match group_type:
+                    case NodeGroupType.COMPOSITOR_NODE_GROUP | NodeGroupType.SCENE:
+                        exporter = CompositorExporter(self, obj.name, group_type)
+                    case NodeGroupType.GEOMETRY_NODE_GROUP:
+                        exporter = GeometryNodesExporter(self, obj.name, group_type)
+                    case (  NodeGroupType.LIGHT 
+                        | NodeGroupType.LINE_STYLE
+                        | NodeGroupType.MATERIAL
+                        | NodeGroupType.SHADER_NODE_GROUP
+                        | NodeGroupType.WORLD
+                    ):
+                        exporter = ShaderExporter(self, obj.name, group_type)
+                exporter.export()
 
         if self._mode == 'ADDON':
             self._write("return {'FINISHED'}\n", self._outer_indent_level)
