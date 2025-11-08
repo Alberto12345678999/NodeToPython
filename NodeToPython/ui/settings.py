@@ -1,6 +1,7 @@
 import bpy
 
 from . import main
+from ..export.ntp_options import NTP_PG_Options
 
 class NTP_PT_Settings(bpy.types.Panel):
     bl_idname = "NTP_PT_settings"
@@ -22,7 +23,7 @@ class NTP_PT_Settings(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.operator_context = 'INVOKE_DEFAULT'
-        ntp_options = context.scene.ntp_options
+        ntp_options : NTP_PG_Options = getattr(context.scene, "ntp_options")
 
         option_list = [
             "mode"

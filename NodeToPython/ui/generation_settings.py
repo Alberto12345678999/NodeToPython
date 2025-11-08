@@ -1,6 +1,7 @@
 import bpy
 
 from . import settings
+from ..export.ntp_options import NTP_PG_Options
 
 class NTP_PT_GenerationSettings(bpy.types.Panel):
     bl_idname = "NTP_PT_generation_settings"
@@ -22,7 +23,7 @@ class NTP_PT_GenerationSettings(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.operator_context = 'INVOKE_DEFAULT'
-        ntp_options = context.scene.ntp_options
+        ntp_options : NTP_PG_Options = getattr(context.scene, "ntp_options")
 
         generation_options = [
             "set_group_defaults",

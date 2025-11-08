@@ -1,49 +1,51 @@
-import bpy
-from bpy.types import Context, Operator
-from bpy.types import Node, NodeTree
-
-if bpy.app.version < (4, 0, 0):
-    from bpy.types import NodeSocketInterface
-else:
-    from bpy.types import NodeTreeInterfacePanel, NodeTreeInterfaceSocket
-    from bpy.types import NodeTreeInterfaceItem
-
-from bpy.types import bpy_prop_array
-
-import datetime
-import os
+import abc
 import pathlib
-import shutil
-from typing import TextIO, Callable
+import os
+from typing import Callable
 
-from .license_templates import license_templates
-from .ntp_node_tree import NTP_NodeTree
-from .ntp_options import NTP_PG_Options
-from .node_settings import NodeInfo, ST
+import bpy
+
+from .node_group_gatherer import NodeGroupType
+
+from .node_settings import node_settings, ST
+from .ntp_node_tree import *
+from .ntp_operator import NTP_OT_Export
 from .utils import *
 
-INDEX = "i"
+BASE_DIR = "base_dir"
+DATA_DST = "data_dst"
+DATA_SRC = "data_src"
+DATAFILES_PATH = "datafiles_path"
 IMAGE_DIR_NAME = "imgs"
 IMAGE_PATH = "image_path"
+INDEX = "i"
 ITEM = "item"
-BASE_DIR = "base_dir"
-DATAFILES_PATH = "datafiles_path"
 LIB_RELPATH = "lib_relpath"
 LIB_PATH = "lib_path"
-DATA_SRC = "data_src"
-DATA_DST = "data_dst"
+NODE = "node"
 
 RESERVED_NAMES = {
-    INDEX,
+    BASE_DIR,
+    DATA_DST,
+    DATA_SRC,
+    DATAFILES_PATH,
     IMAGE_DIR_NAME,
     IMAGE_PATH,
+    INDEX,
     ITEM,
-    BASE_DIR,
-    DATAFILES_PATH,
     LIB_RELPATH,
-    LIB_PATH,
-    DATA_SRC,
-    DATA_DST
+    LIB_PATH
+}
+
+NO_DEFAULT_SOCKETS = {
+    bpy.types.NodeTreeInterfaceSocketCollection,
+    bpy.types.NodeTreeInterfaceSocketGeometry,
+    bpy.types.NodeTreeInterfaceSocketImage,
+    bpy.types.NodeTreeInterfaceSocketMaterial,
+    bpy.types.NodeTreeInterfaceSocketObject,
+    bpy.types.NodeTreeInterfaceSocketShader,
+    bpy.types.NodeTreeInterfaceSocketTexture,
+    bpy.types.NodeTreeInterfaceSocketClosure
 }
 
 #node input sockets that are messy to set default values for
@@ -56,313 +58,78 @@ DONT_SET_DEFAULTS = {
     'NodeSocketClosure'
 }
 
-MAX_BLENDER_VERSION = (5, 1, 0)
+class NodeTreeExporter(metaclass=abc.ABCMeta):
+    _type = ""
 
-class NTP_Operator(Operator):
-    """
-    "Abstract" base class for all NTP operators. Blender types and abstraction
-    don't seem to mix well, but this should only be inherited from
-    """
+    def __init__(
+        self, 
+        ntp_op: NTP_OT_Export,
+        obj_name: str,
+        group_type: NodeGroupType
+    ):
+        # Operator executing the conversion
+        self._operator : NTP_OT_Export = ntp_op
 
-    bl_idname = ""
-    bl_label = ""
-
-    # node tree input sockets that have default properties
-    if bpy.app.version < (4, 0, 0):
-        default_sockets_v3 = {'VALUE', 'INT', 'BOOLEAN', 'VECTOR', 'RGBA'}
-    else:
-        nondefault_sockets_v4 = {
-            bpy.types.NodeTreeInterfaceSocketCollection,
-            bpy.types.NodeTreeInterfaceSocketGeometry,
-            bpy.types.NodeTreeInterfaceSocketImage,
-            bpy.types.NodeTreeInterfaceSocketMaterial,
-            bpy.types.NodeTreeInterfaceSocketObject,
-            bpy.types.NodeTreeInterfaceSocketShader,
-            bpy.types.NodeTreeInterfaceSocketTexture,
-            bpy.types.NodeTreeInterfaceSocketClosure
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        # Write functions after nodes are mostly initialized and linked up
-        self._write_after_links: list[Callable] = []
-
-        # File (TextIO) or string (StringIO) the add-on/script is generated into
-        self._file: TextIO = None
-
-        # Path to the directory of the zip file
-        self._zip_dir: str = None
-
-        # Path to the directory for the generated addon
-        self._addon_dir: str = None
-
-        # Class named for the generated operator
-        self._class_name: str = None
-
-        # Indentation to use for the default write function
-        self._outer_indent_level: int = 0
-        self._inner_indent_level: int = 1
-
-        # Base node tree we're converting
-        self._base_node_tree: NodeTree = None
-
-        # Dictionary to keep track of node tree->variable name pairs
-        self._node_tree_vars: dict[NodeTree, str] = {}
-
-        # Dictionary to keep track of node->variable name pairs
-        self._node_vars: dict[Node, str] = {}
+        # Name of the object to be exported
+        self._obj_name : str = obj_name
 
         # Dictionary to keep track of variables->usage count pairs
         self._used_vars: dict[str, int] = {}
-
-        # Dictionary used for setting node properties
-        self._node_infos: dict[str, NodeInfo] = {}
-
         for name in RESERVED_NAMES:
             self._used_vars[name] = 0
 
-        # Generate socket default, min, and max values
-        self._include_group_socket_values = True
+        # Variable name to be used for object
+        self._obj_var : str = self._create_var(self._obj_name)
 
-        # Set dimensions of generated nodes
-        self._should_set_dimensions = True
+        self._group_type = group_type
+    
+        # Class name for the operator, if it exists
+        self._class_name : str = (
+            f"{self._operator.name}_OT_"
+            f"{clean_string(self._obj_name, lower=False)}"
+        )
 
-        # Indentation string (default four spaces)
-        self._indentation = "    "
+        # Node tree this exporter is responsible for exporting
+        self._base_node_tree : bpy.types.NodeTree = None
 
-        self._link_external_node_groups = True
+        # Dictionary to keep track of node->variable name pairs
+        self._node_vars: dict[bpy.types.Node, str] = {}
 
+        # Dictionary to keep track of node tree->variable name pairs
+        self._node_tree_vars: dict[bpy.types.NodeTree, str] = {}
+
+        # Library trees to link
         self._lib_trees: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
 
-        if bpy.app.version >= (3, 4, 0):
-            # Set default values for hidden sockets
-            self._set_unavailable_defaults = False
+        # Write functions after nodes are mostly initialized and linked up
+        self._write_after_links: list[Callable] = []
+    
+        # Copy of node settings (may have to modify for some nodes)
+        self._node_settings = node_settings
 
-    def _write(self, string: str, indent_level: int = None):
-        if indent_level is None:
-            indent_level = self._inner_indent_level
-        indent_str = indent_level * self._indentation
-        self._file.write(f"{indent_str}{string}\n")
-
-    def _setup_options(self, options: NTP_PG_Options) -> bool:
-        if bpy.app.version >= MAX_BLENDER_VERSION:
-            self.report({'WARNING'},
-                        f"Blender version {bpy.app.version} is not supported yet!\n"
-                        "NodeToPython is currently supported up to Blender 4.5.\n"
-                        "Some nodes, settings, and features may not work yet. See:")
-            self.report({'WARNING'},
-                        "\t\thttps://github.com/BrendanParmer/NodeToPython/blob/main/docs/README.md#supported-versions ")
-            self.report({'WARNING'}, "for more details")
-
-        # General
-        self._mode = options.mode
-        self._include_group_socket_values = options.set_group_defaults
-        self._should_set_dimensions = options.set_node_sizes
-
-        if options.indentation_type == 'SPACES_2':
-            self._indentation = "  "
-        elif options.indentation_type == 'SPACES_4':
-            self._indentation = "    "
-        elif options.indentation_type == 'SPACES_8':
-            self._indentation = "        "
-        elif options.indentation_type == 'TABS':
-            self._indentation = "\t"
-
-        self._link_external_node_groups = options.link_external_node_groups
-
-        if bpy.app.version >= (3, 4, 0):
-            self._set_unavailable_defaults = options.set_unavailable_defaults
-
-        #Script
-        if options.mode == 'SCRIPT':
-            self._include_imports = options.include_imports
-        #Addon
-        elif options.mode == 'ADDON':
-            self._dir_path = bpy.path.abspath(options.dir_path)
-            self._name_override = options.name_override
-            self._description = options.description
-            self._author_name = options.author_name
-            self._version = options.version
-            self._location = options.location
-            self._license = options.license
-            self._should_create_license = options.should_create_license
-            self._category = options.category
-            self._custom_category = options.custom_category
-            if options.menu_id in dir(bpy.types):
-                self._menu_id = options.menu_id
-            else:
-                self.report({'ERROR'}, f"{options.menu_id} is not a valid menu")
-                return False
-        return True
-
-    def _setup_addon_directories(self, context: Context, obj_var: str) -> bool:
-        """
-        Finds/creates directories to save add-on to
-
-        Parameters:
-        context (Context): the current scene context
-        obj_var (str): variable name of the object
-
-        Returns:
-        (bool): success of addon directory setup
-        """
-        if not self._dir_path or self._dir_path == "":
-            self.report({'ERROR'},
-                        ("NodeToPython: No save location found. Please select "
-                         "one in the NodeToPython Options panel"))
-            return False
-
-        self._zip_dir = os.path.join(self._dir_path, obj_var)
-        self._addon_dir = os.path.join(self._zip_dir, obj_var)
-
-        if not os.path.exists(self._addon_dir):
-            os.makedirs(self._addon_dir)
+    def export(self) -> None:
+        if self._operator._mode == 'ADDON':
+            self._init_operator(self._obj_var, self._obj_name)
+            self._write("def execute(self, context: bpy.types.Context):", 1)
         
-        return True
-
-    def _create_bl_info(self, name: str) -> None:
-        """
-        Sets up the bl_info and imports the Blender API
-
-        Parameters:
-        name (str): name of the add-on
-        """
-
-        self._write("bl_info = {", 0)
-        self._name = name
-        if self._name_override and self._name_override != "":
-            self._name = self._name_override
-        self._write(f"\"name\" : {str_to_py_str(self._name)},", 1)
-        if self._description and self._description != "":
-            self._write(f"\"description\" : {str_to_py_str(self._description)},", 1)
-        self._write(f"\"author\" : {str_to_py_str(self._author_name)},", 1)
-        self._write(f"\"version\" : {vec3_to_py_str(self._version)},", 1)
-        self._write(f"\"blender\" : {bpy.app.version},", 1)
-        self._write(f"\"location\" : {str_to_py_str(self._location)},", 1)
-        category = self._category
-        if category == "Custom":
-            category = self._custom_category
-        self._write(f"\"category\" : {str_to_py_str(category)},", 1)
-        self._write("}\n", 0)
-
-    def _create_imports(self) -> None:
-        self._write("import bpy", 0)
-        self._write("import mathutils", 0)
-        self._write("import os", 0)
-        self._write("\n", 0)
-
-    def _init_operator(self, idname: str, label: str) -> None:
-        """
-        Initializes the add-on's operator 
-
-        Parameters:
-        name (str): name for the class
-        idname (str): name for the operator
-        label (str): appearence inside Blender
-        """
-        self._idname = idname
-        self._write(f"class {self._class_name}(bpy.types.Operator):", 0)
-        self._write("def __init__(self, *args, **kwargs):", 1)
-        self._write("super().__init__(*args, **kwargs)\n", 2)
-
-        self._write(f"bl_idname = \"node.{idname}\"", 1)
-        self._write(f"bl_label = {str_to_py_str(label)}", 1)
-        self._write("bl_options = {\'REGISTER\', \'UNDO\'}\n", 1)
-
-    def _topological_sort(self, node_tree: NodeTree) -> list[NodeTree]:
-        """
-        Perform a topological sort on the node graph to determine dependencies 
-        and which node groups need processed first
-
-        Parameters:
-        node_tree (NodeTree): the base node tree to convert
-
-        Returns:
-        (list[NodeTree]): the node trees in order of processing
-        """
-        if isinstance(node_tree, bpy.types.CompositorNodeTree):
-            group_node_type = 'CompositorNodeGroup'
-        elif isinstance(node_tree, bpy.types.GeometryNodeTree):
-            group_node_type = 'GeometryNodeGroup'
-        elif isinstance(node_tree, bpy.types.ShaderNodeTree):
-            group_node_type = 'ShaderNodeGroup'
-        
-        visited = set()
-        result: list[NodeTree] = []
-
-        def dfs(nt: NodeTree) -> None:
-            """
-            Helper function to perform depth-first search on a NodeTree
-
-            Parameters:
-            nt (NodeTree): current node tree in the dependency graph
-            """
-            if nt is None:
-                self.report({'ERROR'}, "NodeToPython: Found an invalid node tree. "
-                            "Are all data blocks valid?")
-                return
+        self._set_base_node_tree()
             
-            if self._link_external_node_groups and nt.library is not None:
-                bpy_lib_path = bpy.path.abspath(nt.library.filepath)
-                lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
-                bpy_datafiles_path = bpy.path.abspath(
-                    bpy.utils.system_resource('DATAFILES')
-                )
-                datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
-                is_lib_essential = lib_path.is_relative_to(datafiles_path)
+        self._create_obj()
 
-                if is_lib_essential:
-                    relative_path = lib_path.relative_to(datafiles_path)
-                    if relative_path not in self._lib_trees:
-                        self._lib_trees[relative_path] = []
-                    self._lib_trees[relative_path].append(nt)
-                    return
-                else:
-                    print(f"Library {lib_path} didn't seem essential, copying node groups")
-            
-            if nt not in visited:
-                visited.add(nt)
-                for group_node in [node for node in nt.nodes
-                                   if node.bl_idname == group_node_type]:
-                    if group_node.node_tree not in visited:
-                        if group_node.node_tree is None:
-                            self.report(
-                                {'ERROR'}, 
-                                "NodeToPython: Found an invalid node tree. "
-                                "Are all data blocks valid?"
-                            )
-                        dfs(group_node.node_tree)
-                result.append(nt)
-        
-        dfs(node_tree)
+        tree_to_process : list[bpy.types.NodeTree] = self._topological_sort(
+            self._base_node_tree
+        )
 
-        return result
+        self._import_essential_libs()
 
-    def _import_essential_libs(self) -> None:
-        self._inner_indent_level -= 1
-        self._write("# Import node groups from Blender essentials library")
-        self._write(f"{DATAFILES_PATH} = bpy.utils.system_resource('DATAFILES')")
-        for path, node_trees in self._lib_trees.items():
-            self._write(f"{LIB_RELPATH} = {str_to_py_str(str(path))}")
-            self._write(f"{LIB_PATH} = os.path.join({DATAFILES_PATH}, {LIB_RELPATH})")
-            self._write(f"with bpy.data.libraries.load({LIB_PATH}, link=True) "
-                        f" as ({DATA_SRC}, {DATA_DST}):")
-            self._write(f"\t{DATA_DST}.node_groups = []")
-            for node_tree in node_trees:
-                name_str = str_to_py_str(node_tree.name)
-                self._write(f"\tif {name_str} in {DATA_SRC}.node_groups:")
-                self._write(f"\t\t{DATA_DST}.node_groups.append({name_str})")
-                # TODO: handle bad case with warning (in both script and addon mode)
-            
-            for i, node_tree in enumerate(node_trees):
-                nt_var = self._create_var(node_tree.name)
-                self._node_tree_vars[node_tree] = nt_var
-                self._write(f"{nt_var} = {DATA_DST}.node_groups[{i}]")
-        self._write("\n")
-        self._inner_indent_level += 1
-            
+        for node_tree in tree_to_process:
+            self._process_node_tree(node_tree)
 
+        if self._operator._mode == 'ADDON':
+            self._write("return {'FINISHED'}\n", self._operator._outer_indent_level)
+
+    def _write(self, string: str, indent_level: int = -1):
+        self._operator._write(string, indent_level)
 
     def _create_var(self, name: str) -> str:
         """
@@ -384,8 +151,553 @@ class NTP_Operator(Operator):
         else:
             self._used_vars[var] = 0
             return clean_name
+    
+    def _init_operator(self, idname: str, label: str) -> None:
+        """
+        Initializes the add-on's operator 
 
-    def _create_node(self, node: Node, node_tree_var: str) -> str:
+        Parameters:
+        idname (str): name for the operator
+        label (str): appearence inside Blender
+        """
+        self._idname = idname
+        self._write(f"class {self._class_name}(bpy.types.Operator):", 0)
+        self._write("def __init__(self, *args, **kwargs):", 1)
+        self._write("super().__init__(*args, **kwargs)\n", 2)
+
+        idname_str = f"{clean_string(self._operator.name)}.{idname}"
+        self._write(f"bl_idname = {str_to_py_str(idname_str)}", 1)
+        self._write(f"bl_label = {str_to_py_str(label)}", 1)
+        self._write("bl_options = {\'REGISTER\', \'UNDO\'}\n", 1)
+
+    @abc.abstractmethod
+    def _set_base_node_tree(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def _create_obj(self):
+        pass
+
+    def _get_obj_creation_indent(self) -> int:
+        indent_level = -1
+        if self._operator._mode == 'ADDON':
+            indent_level = 2
+        elif self._operator._mode == 'SCRIPT':
+            indent_level = 0
+        return indent_level
+    
+    def _topological_sort(
+        self, 
+        node_tree: bpy.types.NodeTree
+    ) -> list[bpy.types.NodeTree]:
+        """
+        Perform a topological sort on the node graph to determine dependencies 
+        and which node groups need processed first
+
+        Parameters:
+        node_tree (NodeTree): the base node tree to convert
+
+        Returns:
+        (list[NodeTree]): the node trees in order of processing
+        """
+        group_node_type = ''
+        if isinstance(node_tree, bpy.types.CompositorNodeTree):
+            group_node_type = 'CompositorNodeGroup'
+        elif isinstance(node_tree, bpy.types.GeometryNodeTree):
+            group_node_type = 'GeometryNodeGroup'
+        elif isinstance(node_tree, bpy.types.ShaderNodeTree):
+            group_node_type = 'ShaderNodeGroup'
+        
+        visited = set()
+        result: list[bpy.types.NodeTree] = []
+
+        def dfs(nt: bpy.types.NodeTree) -> None:
+            """
+            Helper function to perform depth-first search on a NodeTree
+
+            Parameters:
+            nt (NodeTree): current node tree in the dependency graph
+            """
+            if nt is None:
+                self._operator.report(
+                    {'ERROR'}, 
+                    "NodeToPython: Found an invalid node tree. "
+                    "Are all data blocks valid?"
+                )
+                return
+            
+            if (self._operator._link_external_node_groups 
+                and nt.library is not None):
+                bpy_lib_path = bpy.path.abspath(nt.library.filepath)
+                lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
+                bpy_datafiles_path = bpy.path.abspath(
+                    bpy.utils.system_resource('DATAFILES')
+                )
+                datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
+                is_lib_essential = lib_path.is_relative_to(datafiles_path)
+
+                if is_lib_essential:
+                    relative_path = lib_path.relative_to(datafiles_path)
+                    if relative_path not in self._lib_trees:
+                        self._lib_trees[relative_path] = []
+                    self._lib_trees[relative_path].append(nt)
+                    return
+                else:
+                    print(f"Library {lib_path} didn't seem essential, copying node groups")
+            
+            if nt not in visited:
+                visited.add(nt)
+                group_nodes = [node for node in nt.nodes
+                               if node.bl_idname == group_node_type]
+                for group_node in group_nodes:
+                    node_nt = getattr(group_node, "node_tree")
+                    if node_nt is None:
+                        self._operator.report(
+                            {'ERROR'}, 
+                            "NodeToPython: Found an invalid node tree. "
+                            "Are all data blocks valid?"
+                        )
+                        continue
+                    if node_nt not in visited:
+                        dfs(node_nt)
+                result.append(nt)
+        
+        dfs(node_tree)
+
+        return result
+
+    def _import_essential_libs(self) -> None:
+        if len(self._lib_trees) == 0:
+            return
+        self._operator._inner_indent_level -= 1
+        self._write("# Import node groups from Blender essentials library")
+        self._write(f"{DATAFILES_PATH} = bpy.utils.system_resource('DATAFILES')")
+        for path, node_trees in self._lib_trees.items():
+            self._write(f"{LIB_RELPATH} = {str_to_py_str(str(path))}")
+            self._write(f"{LIB_PATH} = os.path.join({DATAFILES_PATH}, {LIB_RELPATH})")
+            self._write(f"with bpy.data.libraries.load({LIB_PATH}, link=True) "
+                        f" as ({DATA_SRC}, {DATA_DST}):")
+            self._write(f"\t{DATA_DST}.node_groups = []")
+            for node_tree in node_trees:
+                name_str = str_to_py_str(node_tree.name)
+                self._write(f"\tif {name_str} in {DATA_SRC}.node_groups:")
+                self._write(f"\t\t{DATA_DST}.node_groups.append({name_str})")
+                # TODO: handle bad case with warning (in both script and addon mode)
+            
+            for i, node_tree in enumerate(node_trees):
+                nt_var = self._create_var(node_tree.name)
+                self._node_tree_vars[node_tree] = nt_var
+                self._write(f"{nt_var} = {DATA_DST}.node_groups[{i}]")
+        self._write("\n")
+        self._operator._inner_indent_level += 1
+
+    
+    def _initialize_ntp_node_tree(
+        self, 
+        node_tree: bpy.types.NodeTree,
+        nt_var: str
+    ) -> NTP_NodeTree:
+        return NTP_NodeTree(node_tree, nt_var)
+
+    def _process_node_tree(self, node_tree: bpy.types.NodeTree) -> None:
+        """
+        Generates a Python function to recreate a compositor node tree
+
+        Parameters:
+        node_tree (NodeTree): node tree to be recreated
+        """  
+        nt_var = self._create_var(node_tree.name)
+        self._node_tree_vars[node_tree] = nt_var
+
+        ntp_nt = self._initialize_ntp_node_tree(node_tree, nt_var)
+
+        self._initialize_node_tree(ntp_nt)
+
+        self._set_node_tree_properties(node_tree)
+        
+        if bpy.app.version >= (4, 0, 0):
+            self._tree_interface_settings(ntp_nt)
+
+        #initialize nodes
+        self._write(f"# Initialize {nt_var} nodes\n")
+
+        for node in node_tree.nodes:
+            self._process_node(node, ntp_nt)
+
+        for zone_list in ntp_nt._zone_inputs.values():
+            self._process_zones(zone_list)
+        
+        #set look of nodes
+        self._set_parents(node_tree)
+        self._set_locations(node_tree)
+        self._set_dimensions(node_tree)
+
+        #create connections
+        self._init_links(node_tree)
+        
+        self._write(f"return {nt_var}\n")
+        if self._operator._mode == 'SCRIPT':
+            self._write("", 0)
+
+        #create node group
+        self._write(f"{nt_var} = {nt_var}_node_group()\n", 
+                    self._operator._outer_indent_level)
+    
+    @abc.abstractmethod
+    def _initialize_node_tree(
+        self, 
+        ntp_node_tree: NTP_NodeTree
+    ) -> None:
+        pass
+
+    def _set_node_tree_properties(self, node_tree: bpy.types.NodeTree) -> None:
+        nt_var = self._node_tree_vars[node_tree]
+
+        if bpy.app.version >= (4, 2, 0):
+            color_tag_str = enum_to_py_str(node_tree.color_tag)
+            self._write(f"{nt_var}.color_tag = {color_tag_str}")
+            desc_str = str_to_py_str(node_tree.description)
+            self._write(f"{nt_var}.description = {desc_str}")
+        if bpy.app.version >= (4, 3, 0):
+            default_width = node_tree.default_group_node_width
+            self._write(f"{nt_var}.default_group_node_width = {default_width}")
+
+    def _tree_interface_settings(self, ntp_nt: NTP_NodeTree) -> None:
+        """
+        Set the settings for group input and output sockets
+
+        Parameters:
+        ntp_nt (NTP_NodeTree): the node tree to set the interface for
+        """
+        if len(ntp_nt._node_tree.interface.items_tree) == 0:
+            return
+        
+        self._write(f"# {ntp_nt._var} interface\n")
+        panel_dict: dict[bpy.types.NodeTreeInterfacePanel, str] = {}
+        items_processed: set[bpy.types.NodeTreeInterfaceItem] = set()
+
+        self._process_items(None, panel_dict, items_processed, ntp_nt)
+
+    def _process_items(
+            self, 
+            parent: bpy.types.NodeTreeInterfacePanel | None, 
+            panel_dict: dict[bpy.types.NodeTreeInterfacePanel, str], 
+            items_processed: set[bpy.types.NodeTreeInterfaceItem], 
+            ntp_nt: NTP_NodeTree
+    ) -> None:
+        """
+        Recursive function to process all node tree interface items in a 
+        given layer
+
+        Helper function to _tree_interface_settings()
+
+        Parameters:
+        parent (NodeTreeInterfacePanel): parent panel of the layer
+            (possibly None to signify the base)
+        panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
+        items_processed (set[NodeTreeInterfacePanel]): set of already
+            processed items, so none are done twice
+        ntp_nt (NTP_NodeTree): owner of the socket
+        """
+        
+        if parent is None:
+            items = ntp_nt._node_tree.interface.items_tree
+        else:
+            items = parent.interface_items
+
+        for item in items:
+            if item.parent.index != -1 and item.parent not in panel_dict:
+                continue # child of panel not processed yet
+            if item in items_processed:
+                continue
+            
+            items_processed.add(item)
+
+            if item.item_type in {'SOCKET', 'PANEL_TOGGLE'}:
+                self._create_socket(item, parent, panel_dict, ntp_nt)
+
+            elif item.item_type == 'PANEL':
+                self._create_panel(
+                    item, 
+                    panel_dict, 
+                    items_processed,
+                    parent, 
+                    ntp_nt
+                )
+                if bpy.app.version >= (4, 4, 0) and parent is not None:
+                    nt_var = self._node_tree_vars[ntp_nt._node_tree]
+                    interface_var = f"{nt_var}.interface"
+                    panel_var = panel_dict[item]
+                    parent_var = panel_dict[parent]
+                    self._write(f"{interface_var}.move_to_parent("
+                                f"{panel_var}, {parent_var}, {item.index})")
+
+    def _create_socket(
+        self, 
+        socket: bpy.types.NodeTreeInterfaceSocket, 
+        parent: bpy.types.NodeTreeInterfacePanel, 
+        panel_dict: dict[bpy.types.NodeTreeInterfacePanel, str], 
+        ntp_nt: NTP_NodeTree
+    ) -> None:
+        """
+        Initialize a new tree socket
+
+        Helper function to _process_items()
+
+        Parameters:
+        socket (NodeTreeInterfaceSocket): the socket to recreate
+        parent (NodeTreeInterfacePanel): parent panel of the socket
+            (possibly None)
+        panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
+        ntp_nt (NTP_NodeTree): owner of the socket
+        """
+
+        self._write(f"# Socket {socket.name}")
+        # initialization
+        socket_var = self._create_var(socket.name + "_socket") 
+        name = str_to_py_str(socket.name)
+        in_out_enum = enum_to_py_str(socket.in_out)
+
+        socket_type = enum_to_py_str(socket.bl_socket_idname)
+        """
+        I might be missing something, but the Python API's set up a bit 
+        weird here now. The new socket initialization only accepts types
+        from a list of basic ones, but there doesn't seem to be a way of
+        retrieving just this basic type without the subtype information.
+        """
+        if 'Float' in socket_type:
+            socket_type = enum_to_py_str('NodeSocketFloat')
+        elif 'Int' in socket_type:
+            socket_type = enum_to_py_str('NodeSocketInt')
+        elif 'Vector' in socket_type:
+            socket_type = enum_to_py_str('NodeSocketVector')
+
+        if parent is None:
+            optional_parent_str = ""
+        else:
+            optional_parent_str = f", parent = {panel_dict[parent]}"
+
+        self._write(f"{socket_var} = "
+                    f"{ntp_nt._var}.interface.new_socket("
+                    f"name={name}, in_out={in_out_enum}, "
+                    f"socket_type={socket_type}"
+                    f"{optional_parent_str})")
+
+        # vector dimensions
+        if hasattr(socket, "dimensions"):
+            dimensions : int = getattr(socket, "dimensions")
+            if dimensions != 3:
+                self._write(f"{socket_var}.dimensions = {dimensions}")
+                self._write("# Get the socket again, as its default value may "
+                            "have been updated")
+                self._write(f"{socket_var} = {ntp_nt._var}.interface.items_tree[{socket_var}.index]")
+
+        self._set_tree_socket_defaults(socket, socket_var)
+
+        # subtype
+        if hasattr(socket, "subtype"):
+            subtype : str = getattr(socket, "subtype")
+            if subtype != '':
+                subtype = enum_to_py_str(subtype)
+                self._write(f"{socket_var}.subtype = {subtype}")
+
+        # default attribute name
+        if socket.default_attribute_name != "":
+            dan = str_to_py_str(
+                socket.default_attribute_name)
+            self._write(f"{socket_var}.default_attribute_name = {dan}")
+
+        # attribute domain
+        ad = enum_to_py_str(socket.attribute_domain)
+        self._write(f"{socket_var}.attribute_domain = {ad}")
+
+        # hide_value
+        if socket.hide_value is True:
+            self._write(f"{socket_var}.hide_value = True")
+
+        # hide in modifier
+        if socket.hide_in_modifier is True:
+            self._write(f"{socket_var}.hide_in_modifier = True")
+
+        # force non field
+        if socket.force_non_field is True:
+            self._write(f"{socket_var}.force_non_field = True")
+        
+        # tooltip
+        if socket.description != "":
+            description = str_to_py_str(socket.description)
+            self._write(f"{socket_var}.description = {description}")
+
+        # layer selection field
+        if socket.layer_selection_field:
+            self._write(f"{socket_var}.layer_selection_field = True")
+
+        if bpy.app.version >= (4, 2, 0):
+            # is inspect output
+            if socket.is_inspect_output:
+                self._write(f"{socket_var}.is_inspect_output = True")
+
+        if bpy.app.version >= (4, 5, 0):
+            # default input
+            default_input = enum_to_py_str(socket.default_input)
+            self._write(f"{socket_var}.default_input = {default_input}")
+
+            # is panel toggle
+            if socket.is_panel_toggle:
+                self._write(f"{socket_var}.is_panel_toggle = True")
+
+            # menu expanded
+            if socket.menu_expanded:
+                self._write(f"{socket_var}.menu_expanded = True")
+
+            # structure type
+            structure_type = enum_to_py_str(socket.structure_type)
+            self._write(f"{socket_var}.structure_type = {structure_type}")
+
+        if bpy.app.version >= (5, 0, 0):
+            # optional label
+            if socket.optional_label:
+                self._write(f"{socket_var}.optional_label = True")
+
+        self._write("", 0)
+
+    def _create_panel(
+        self, 
+        panel: bpy.types.NodeTreeInterfacePanel,
+        panel_dict: dict[bpy.types.NodeTreeInterfacePanel, str],
+        items_processed: set[bpy.types.NodeTreeInterfacePanel], 
+        parent: bpy.types.NodeTreeInterfacePanel, 
+        ntp_nt: NTP_NodeTree):
+            """
+            Initialize a new tree panel and its subitems
+
+            Helper function to _process_items()
+
+            Parameters:
+            panel (NodeTreeInterfacePanel): the panel to recreate
+            panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
+            items_processed (set[NodeTreeInterfacePanel]): set of already
+                processed items, so none are done twice
+            parent (NodeTreeInterfacePanel): parent panel of the socket
+                (possibly None)
+            ntp_nt (NTP_NodeTree): owner of the socket
+            """
+
+            self._write(f"# Panel {panel.name}")
+
+            panel_var = self._create_var(panel.name + "_panel")
+            panel_dict[panel] = panel_var
+
+            closed_str = ""
+            if panel.default_closed is True:
+                closed_str = f", default_closed=True"
+                
+            parent_str = ""
+            if parent is not None and bpy.app.version < (4, 2, 0):
+                parent_str = f", parent = {panel_dict[parent]}"     
+
+            self._write(f"{panel_var} = "
+                        f"{ntp_nt._var}.interface.new_panel("
+                        f"{str_to_py_str(panel.name)}"
+                        f"{closed_str}{parent_str})")
+
+            # tooltip
+            if panel.description != "":
+                description = str_to_py_str(panel.description)
+                self._write(f"{panel_var}.description = {description}")
+
+            panel_dict[panel] = panel_var
+
+            if len(panel.interface_items) > 0:
+                self._process_items(panel, panel_dict, items_processed, ntp_nt)
+            
+            self._write("", 0)
+
+    def _set_tree_socket_defaults(
+        self, 
+        socket_interface: bpy.types.NodeTreeInterfaceSocket,
+        socket_var: str
+    ) -> None:
+        """
+        Set a node tree input/output's default properties if they exist
+
+        Helper function to _create_socket()
+
+        Parameters:
+        socket_interface (NodeTreeInterfaceSocket): socket interface associated
+            with the input/output
+        socket_var (str): variable name for the socket
+        """
+        if not self._operator._include_group_socket_values:
+            return
+        
+        if type(socket_interface) in NO_DEFAULT_SOCKETS:
+            return
+
+        dv = getattr(socket_interface, "default_value")
+
+        if bpy.app.version >= (4, 1, 0):
+            if type(socket_interface) is bpy.types.NodeTreeInterfaceSocketMenu:
+                if dv == "":
+                    self._operator.report({'WARNING'},
+                        "NodeToPython: No menu found for socket "
+                        f"{socket_interface.name}"
+                    )
+                    return
+
+                self._write_after_links.append(
+                    lambda _socket_var=socket_var, _dv=enum_to_py_str(dv): (
+                        self._write(f"{_socket_var}.default_value = {_dv}")
+                    )
+                )
+                return
+        
+        if type(socket_interface) == bpy.types.NodeTreeInterfaceSocketColor:
+            dv = vec4_to_py_str(dv)
+        elif type(dv) == mathutils.Euler:
+            dv = vec3_to_py_str(dv)
+        elif type(dv) == bpy_prop_array:
+            dv = array_to_py_str(dv)
+        elif type(dv) == str:
+            dv = str_to_py_str(dv)
+        elif type(dv) == mathutils.Vector:
+            if len(dv) == 2:
+                dv = vec2_to_py_str(dv)
+            elif len(dv) == 3:
+                dv = vec3_to_py_str(dv)
+            elif len(dv) == 4:
+                dv = vec4_to_py_str(dv)
+        self._write(f"{socket_var}.default_value = {dv}")
+
+        # min value
+        if hasattr(socket_interface, "min_value"):
+            min_val = getattr(socket_interface, "min_value")
+            self._write(f"{socket_var}.min_value = {min_val}")
+        # max value
+        if hasattr(socket_interface, "min_value"):
+            max_val = getattr(socket_interface, "max_value")
+            self._write(f"{socket_var}.max_value = {max_val}")
+
+    def _process_node(self, node: bpy.types.Node, ntp_nt: NTP_NodeTree) -> None:
+        """
+        Create node and set settings, defaults, and cosmetics
+
+        Parameters:
+        node (Node): node to process
+        ntp_nt (NTP_NodeTree): the node tree that node belongs to
+        """
+        node_var: str = self._create_node(node, ntp_nt._var)
+        self._set_settings_defaults(node)
+
+        if node.bl_idname in ntp_nt._zone_inputs:
+            ntp_nt._zone_inputs[node.bl_idname].append(node)
+        
+        self._hide_hidden_sockets(node)
+
+        if node.bl_idname not in ntp_nt._zone_inputs:
+            self._set_socket_defaults(node)
+
+    def _create_node(self, node: bpy.types.Node, node_tree_var: str) -> str:
         """
         Initializes a new node with location, dimension, and label info
 
@@ -430,8 +742,8 @@ class NTP_Operator(Operator):
                 self._write(f"{node_var}.warning_propagation = "
                             f"{enum_to_py_str(node.warning_propagation)}")
         return node_var
-
-    def _set_settings_defaults(self, node: Node) -> None:
+    
+    def _set_settings_defaults(self, node: bpy.types.Node) -> None:
         """
         Sets the defaults for any settings a node may have
 
@@ -439,15 +751,15 @@ class NTP_Operator(Operator):
         node (Node): the node object we're copying settings from
         node_var (str): name of the variable we're using for the node in our add-on
         """
-        if node.bl_idname not in self._node_infos:
-            self.report({'WARNING'},
+        if node.bl_idname not in self._node_settings:
+            self._operator.report({'WARNING'},
                         (f"NodeToPython: couldn't find {node.bl_idname} in "
                          f"settings. Your Blender version may not be supported"))
             return
 
         node_var = self._node_vars[node]
 
-        node_info = self._node_infos[node.bl_idname]
+        node_info = self._node_settings[node.bl_idname]
         for attr_info in node_info.attributes_:
             attr_name = attr_info.name_
             st = attr_info.st_
@@ -460,7 +772,7 @@ class NTP_Operator(Operator):
                 continue
 
             if not hasattr(node, attr_name):
-                self.report({'WARNING'},
+                self._operator.report({'WARNING'},
                             f"NodeToPython: Couldn't find attribute "
                             f"\"{attr_name}\" for node {node.name} of type "
                             f"{node.bl_idname}")
@@ -494,6 +806,8 @@ class NTP_Operator(Operator):
                 self._write(f"{setting_str} = {vec4_to_py_str(attr)}")
             elif st == ST.COLOR:
                 self._write(f"{setting_str} = {color_to_py_str(attr)}")
+            elif st == ST.EULER:
+                self._write(f"{setting_str} = {vec3_to_py_str(attr)}")
             elif st == ST.MATERIAL:
                 self._set_if_in_blend_file(attr, setting_str, "materials")
             elif st == ST.OBJECT:
@@ -509,7 +823,7 @@ class NTP_Operator(Operator):
             elif st == ST.IMAGE:
                 if attr is None:
                     continue
-                if self._addon_dir is not None:
+                if self._operator._addon_dir != "":
                     if attr.source in {'FILE', 'GENERATED', 'TILED'}:
                         if self._save_image(attr):
                             self._load_image(attr, setting_str)
@@ -563,542 +877,6 @@ class NTP_Operator(Operator):
             elif st == ST.SEPARATE_BUNDLE_ITEMS:
                 self._separate_bundle_items(attr, setting_str)
 
-    if bpy.app.version < (4, 0, 0):
-        def _set_group_socket_defaults(self, socket_interface: NodeSocketInterface,
-                                       socket_var: str) -> None:
-            """
-            Set a node group input/output's default properties if they exist
-            Helper function to _group_io_settings()
-
-            Parameters:
-            socket_interface (NodeSocketInterface): socket interface associated
-                with the input/output
-            socket_var (str): variable name for the socket
-            """
-            if not self._include_group_socket_values:
-                return
-
-            if socket_interface.type not in self.default_sockets_v3:
-                return
-            
-            if not hasattr(socket_interface, "default_value"):
-                self.report({'WARNING'},
-                            f"Socket {socket_interface.type} had no default value")
-                return
-
-            if socket_interface.type == 'RGBA':
-                dv = vec4_to_py_str(socket_interface.default_value)
-            elif socket_interface.type == 'VECTOR':
-                dv = vec3_to_py_str(socket_interface.default_value)
-            else:
-                dv = socket_interface.default_value
-            self._write(f"{socket_var}.default_value = {dv}")
-
-            # min value
-            if hasattr(socket_interface, "min_value"):
-                min_val = socket_interface.min_value
-                self._write(f"{socket_var}.min_value = {min_val}")
-            # max value
-            if hasattr(socket_interface, "min_value"):
-                max_val = socket_interface.max_value
-                self._write(f"{socket_var}.max_value = {max_val}")
-
-        def _group_io_settings(self, node: Node, 
-                               io: str,  # TODO: convert to enum
-                               ntp_node_tree: NTP_NodeTree) -> None:
-            """
-            Set the settings for group input and output sockets
-
-            Parameters:
-            node (Node) : group input/output node
-            io (str): whether we're generating the input or output settings
-            ntp_node_tree (NTP_NodeTree): node tree that we're generating 
-                input and output settings for
-            """
-            node_tree_var = ntp_node_tree.var
-            node_tree = ntp_node_tree.node_tree
-
-            if io == "input":
-                io_sockets = node.outputs
-                io_socket_interfaces = node_tree.inputs
-            else:
-                io_sockets = node.inputs
-                io_socket_interfaces = node_tree.outputs
-
-            self._write(f"# {node_tree_var} {io}s")
-            for i, inout in enumerate(io_sockets):
-                if inout.bl_idname == 'NodeSocketVirtual':
-                    continue
-                self._write(f"# {io.capitalize()} {inout.name}")
-                idname = enum_to_py_str(inout.bl_idname)
-                name = str_to_py_str(inout.name)
-                self._write(f"{node_tree_var}.{io}s.new({idname}, {name})")
-                socket_interface = io_socket_interfaces[i]
-                socket_var = f"{node_tree_var}.{io}s[{i}]"
-
-                self._set_group_socket_defaults(socket_interface, socket_var)
-
-                # default attribute name
-                if hasattr(socket_interface, "default_attribute_name"):
-                    if socket_interface.default_attribute_name != "":
-                        dan = str_to_py_str(socket_interface.default_attribute_name)
-                        self._write(f"{socket_var}.default_attribute_name = {dan}")
-
-                # attribute domain
-                if hasattr(socket_interface, "attribute_domain"):
-                    ad = enum_to_py_str(socket_interface.attribute_domain)
-                    self._write(f"{socket_var}.attribute_domain = {ad}")
-
-                # tooltip
-                if socket_interface.description != "":
-                    description = str_to_py_str(socket_interface.description)
-                    self._write(f"{socket_var}.description = {description}")
-
-                # hide_value
-                if socket_interface.hide_value is True:
-                    self._write(f"{socket_var}.hide_value = True")
-
-                # hide in modifier
-                if hasattr(socket_interface, "hide_in_modifier"):
-                    if socket_interface.hide_in_modifier is True:
-                        self._write(f"{socket_var}.hide_in_modifier = True")
-
-                self._write("", 0)
-            self._write("", 0)
-
-    elif bpy.app.version >= (4, 0, 0):
-        def _set_tree_socket_defaults(self, socket_interface: NodeTreeInterfaceSocket,
-                                      socket_var: str) -> None:
-            """
-            Set a node tree input/output's default properties if they exist
-
-            Helper function to _create_socket()
-
-            Parameters:
-            socket_interface (NodeTreeInterfaceSocket): socket interface associated
-                with the input/output
-            socket_var (str): variable name for the socket
-            """
-            if not self._include_group_socket_values:
-                return
-            if type(socket_interface) in self.nondefault_sockets_v4:
-                return
-
-            dv = socket_interface.default_value
-
-            if bpy.app.version >= (4, 1, 0):
-                if type(socket_interface) is bpy.types.NodeTreeInterfaceSocketMenu:
-                    if dv == "":
-                        self.report({'WARNING'},
-                            "NodeToPython: No menu found for socket "
-                            f"{socket_interface.name}"
-                        )
-                        return
-
-                    self._write_after_links.append(
-                        lambda _socket_var=socket_var, _dv=enum_to_py_str(dv): (
-                            self._write(f"{_socket_var}.default_value = {_dv}")
-                        )
-                    )
-                    return
-            if type(socket_interface) == bpy.types.NodeTreeInterfaceSocketColor:
-                dv = vec4_to_py_str(dv)
-            elif type(dv) == mathutils.Euler:
-                dv = vec3_to_py_str(dv)
-            elif type(dv) == bpy_prop_array:
-                dv = array_to_py_str(dv)
-            elif type(dv) == str:
-                dv = str_to_py_str(dv)
-            elif type(dv) == mathutils.Vector:
-                if len(dv) == 2:
-                    dv = vec2_to_py_str(dv)
-                elif len(dv) == 3:
-                    dv = vec3_to_py_str(dv)
-                elif len(dv) == 4:
-                    dv = vec4_to_py_str(dv)
-            self._write(f"{socket_var}.default_value = {dv}")
-
-            # min value
-            if hasattr(socket_interface, "min_value"):
-                min_val = socket_interface.min_value
-                self._write(f"{socket_var}.min_value = {min_val}")
-            # max value
-            if hasattr(socket_interface, "min_value"):
-                max_val = socket_interface.max_value
-                self._write(f"{socket_var}.max_value = {max_val}")
-
-        def _create_socket(self, socket: NodeTreeInterfaceSocket, 
-                           parent: NodeTreeInterfacePanel, 
-                           panel_dict: dict[NodeTreeInterfacePanel, str], 
-                           ntp_nt: NTP_NodeTree) -> None:
-            """
-            Initialize a new tree socket
-
-            Helper function to _process_items()
-
-            Parameters:
-            socket (NodeTreeInterfaceSocket): the socket to recreate
-            parent (NodeTreeInterfacePanel): parent panel of the socket
-                (possibly None)
-            panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
-            ntp_nt (NTP_NodeTree): owner of the socket
-            """
-
-            self._write(f"# Socket {socket.name}")
-            # initialization
-            socket_var = self._create_var(socket.name + "_socket") 
-            name = str_to_py_str(socket.name)
-            in_out_enum = enum_to_py_str(socket.in_out)
-
-            socket_type = enum_to_py_str(socket.bl_socket_idname)
-            """
-            I might be missing something, but the Python API's set up a bit 
-            weird here now. The new socket initialization only accepts types
-            from a list of basic ones, but there doesn't seem to be a way of
-            retrieving just this basic type without the subtype information.
-            """
-            if 'Float' in socket_type:
-                socket_type = enum_to_py_str('NodeSocketFloat')
-            elif 'Int' in socket_type:
-                socket_type = enum_to_py_str('NodeSocketInt')
-            elif 'Vector' in socket_type:
-                socket_type = enum_to_py_str('NodeSocketVector')
-
-            if parent is None:
-                optional_parent_str = ""
-            else:
-                optional_parent_str = f", parent = {panel_dict[parent]}"
-
-            self._write(f"{socket_var} = "
-                        f"{ntp_nt.var}.interface.new_socket("
-                        f"name={name}, in_out={in_out_enum}, "
-                        f"socket_type={socket_type}"
-                        f"{optional_parent_str})")
-
-            # vector dimensions
-            if hasattr(socket, "dimensions"):
-                dimensions = socket.dimensions
-                if socket.dimensions != 3:
-                    self._write(f"{socket_var}.dimensions = {dimensions}")
-                    self._write("# Get the socket again, as its default value could have been updated")
-                    self._write(f"{socket_var} = {ntp_nt.var}.interface.items_tree[{socket_var}.index]")
-
-            self._set_tree_socket_defaults(socket, socket_var)
-
-            # subtype
-            if hasattr(socket, "subtype"):
-                if socket.subtype != '':
-                    subtype = enum_to_py_str(socket.subtype)
-                    self._write(f"{socket_var}.subtype = {subtype}")
-
-            # default attribute name
-            if socket.default_attribute_name != "":
-                dan = str_to_py_str(
-                    socket.default_attribute_name)
-                self._write(f"{socket_var}.default_attribute_name = {dan}")
-
-            # attribute domain
-            ad = enum_to_py_str(socket.attribute_domain)
-            self._write(f"{socket_var}.attribute_domain = {ad}")
-
-            # hide_value
-            if socket.hide_value is True:
-                self._write(f"{socket_var}.hide_value = True")
-
-            # hide in modifier
-            if socket.hide_in_modifier is True:
-                self._write(f"{socket_var}.hide_in_modifier = True")
-
-            # force non field
-            if socket.force_non_field is True:
-                self._write(f"{socket_var}.force_non_field = True")
-            
-            # tooltip
-            if socket.description != "":
-                description = str_to_py_str(socket.description)
-                self._write(f"{socket_var}.description = {description}")
-
-            # layer selection field
-            if socket.layer_selection_field:
-                self._write(f"{socket_var}.layer_selection_field = True")
-
-            if bpy.app.version >= (4, 2, 0):
-                # is inspect output
-                if socket.is_inspect_output:
-                    self._write(f"{socket_var}.is_inspect_output = True")
-
-            if bpy.app.version >= (4, 5, 0):
-                # default input
-                default_input = enum_to_py_str(socket.default_input)
-                self._write(f"{socket_var}.default_input = {default_input}")
-
-                # is panel toggle
-                if socket.is_panel_toggle:
-                    self._write(f"{socket_var}.is_panel_toggle = True")
-
-                # menu expanded
-                if socket.menu_expanded:
-                    self._write(f"{socket_var}.menu_expanded = True")
-
-                # structure type
-                structure_type = enum_to_py_str(socket.structure_type)
-                self._write(f"{socket_var}.structure_type = {structure_type}")
-
-            if bpy.app.version >= (5, 0, 0):
-                # optional label
-                if socket.optional_label:
-                    self._write(f"{socket_var}.optional_label = True")
-
-            self._write("", 0)
-
-        def _create_panel(self, panel: NodeTreeInterfacePanel, 
-                          panel_dict: dict[NodeTreeInterfacePanel], 
-                          items_processed: set[NodeTreeInterfacePanel], 
-                          parent: NodeTreeInterfacePanel, ntp_nt: NTP_NodeTree):
-            """
-            Initialize a new tree panel and its subitems
-
-            Helper function to _process_items()
-
-            Parameters:
-            panel (NodeTreeInterfacePanel): the panel to recreate
-            panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
-            items_processed (set[NodeTreeInterfacePanel]): set of already
-                processed items, so none are done twice
-            parent (NodeTreeInterfacePanel): parent panel of the socket
-                (possibly None)
-            ntp_nt (NTP_NodeTree): owner of the socket
-            """
-
-            self._write(f"# Panel {panel.name}")
-
-            panel_var = self._create_var(panel.name + "_panel")
-            panel_dict[panel] = panel_var
-
-            closed_str = ""
-            if panel.default_closed is True:
-                closed_str = f", default_closed=True"
-                
-            parent_str = ""
-            if parent is not None and bpy.app.version < (4, 2, 0):
-                parent_str = f", parent = {panel_dict[parent]}"     
-
-            self._write(f"{panel_var} = "
-                        f"{ntp_nt.var}.interface.new_panel("
-                        f"{str_to_py_str(panel.name)}"
-                        f"{closed_str}{parent_str})")
-
-            # tooltip
-            if panel.description != "":
-                description = str_to_py_str(panel.description)
-                self._write(f"{panel_var}.description = {description}")
-
-            panel_dict[panel] = panel_var
-
-            if len(panel.interface_items) > 0:
-                self._process_items(panel, panel_dict, items_processed, ntp_nt)
-            
-            self._write("", 0)
-
-        def _process_items(self, parent: NodeTreeInterfacePanel, 
-                           panel_dict: dict[NodeTreeInterfacePanel], 
-                           items_processed: set[NodeTreeInterfacePanel], 
-                           ntp_nt: NTP_NodeTree) -> None:
-            """
-            Recursive function to process all node tree interface items in a 
-            given layer
-
-            Helper function to _tree_interface_settings()
-
-            Parameters:
-            parent (NodeTreeInterfacePanel): parent panel of the layer
-                (possibly None to signify the base)
-            panel_dict (dict[NodeTreeInterfacePanel, str]: panel -> variable
-            items_processed (set[NodeTreeInterfacePanel]): set of already
-                processed items, so none are done twice
-            ntp_nt (NTP_NodeTree): owner of the socket
-            """
-            
-            if parent is None:
-                items = ntp_nt.node_tree.interface.items_tree
-            else:
-                items = parent.interface_items
-
-            for item in items:
-                if item.parent.index != -1 and item.parent not in panel_dict:
-                    continue # child of panel not processed yet
-                if item in items_processed:
-                    continue
-                
-                items_processed.add(item)
-
-                if item.item_type in {'SOCKET', 'PANEL_TOGGLE'}:
-                    self._create_socket(item, parent, panel_dict, ntp_nt)
-
-                elif item.item_type == 'PANEL':
-                    self._create_panel(item, panel_dict, items_processed,
-                                       parent, ntp_nt)
-                    if bpy.app.version >= (4, 4, 0) and parent is not None:
-                        nt_var = self._node_tree_vars[ntp_nt.node_tree]
-                        interface_var = f"{nt_var}.interface"
-                        panel_var = panel_dict[item]
-                        parent_var = panel_dict[parent]
-                        self._write(f"{interface_var}.move_to_parent("
-                                    f"{panel_var}, {parent_var}, {item.index})")
-                                    
-
-        def _tree_interface_settings(self, ntp_nt: NTP_NodeTree) -> None:
-            """
-            Set the settings for group input and output sockets
-
-            Parameters:
-            ntp_nt (NTP_NodeTree): the node tree to set the interface for
-            """
-
-            self._write(f"# {ntp_nt.var} interface\n")
-            panel_dict: dict[NodeTreeInterfacePanel, str] = {}
-            items_processed: set[NodeTreeInterfaceItem] = set()
-
-            self._process_items(None, panel_dict, items_processed, ntp_nt)
-
-    def _set_input_defaults(self, node: Node) -> None:
-        """
-        Sets defaults for input sockets
-
-        Parameters:
-        node (Node): node we're setting inputs for
-        """
-        if node.bl_idname == 'NodeReroute':
-            return
-
-        node_var = self._node_vars[node]
-
-        for i, input in enumerate(node.inputs):
-            if input.bl_idname not in DONT_SET_DEFAULTS and not input.is_linked:
-                if bpy.app.version >= (3, 4, 0):
-                    if (not self._set_unavailable_defaults) and input.is_unavailable:
-                        continue
-                    
-                # TODO: this could be cleaner
-                socket_var = f"{node_var}.inputs[{i}]"
-
-                # colors
-                if input.bl_idname == 'NodeSocketColor':
-                    default_val = vec4_to_py_str(input.default_value)
-
-                # vector types
-                elif "Vector" in input.bl_idname:
-                    if "2D" in input.bl_idname:
-                        default_val = vec2_to_py_str(input.default_value)
-                    elif "4D" in input.bl_idname:
-                        default_val = vec4_to_py_str(input.default_value)
-                    else:
-                        default_val = vec3_to_py_str(input.default_value)
-
-                # rotation types
-                elif input.bl_idname == 'NodeSocketRotation':
-                    default_val = vec3_to_py_str(input.default_value)
-
-                # strings
-                elif input.bl_idname in {'NodeSocketString', 'NodeSocketStringFilePath'}:
-                    default_val = str_to_py_str(input.default_value)
-
-                #menu
-                elif input.bl_idname == 'NodeSocketMenu':
-                    if input.default_value == '':
-                        continue
-                    default_val = enum_to_py_str(input.default_value)
-
-                # images
-                elif input.bl_idname == 'NodeSocketImage':
-                    img = input.default_value
-                    if img is not None:
-                        if self._addon_dir != None:  # write in a better way
-                            if self._save_image(img):
-                                self._load_image(img, f"{socket_var}.default_value")
-                        else:
-                            self._in_file_inputs(input, socket_var, "images")
-                    default_val = None
-
-                # materials
-                elif input.bl_idname == 'NodeSocketMaterial':
-                    self._in_file_inputs(input, socket_var, "materials")
-                    default_val = None
-
-                # collections
-                elif input.bl_idname == 'NodeSocketCollection':
-                    self._in_file_inputs(input, socket_var, "collections")
-                    default_val = None
-
-                # objects
-                elif input.bl_idname == 'NodeSocketObject':
-                    self._in_file_inputs(input, socket_var, "objects")
-                    default_val = None
-
-                # textures
-                elif input.bl_idname == 'NodeSocketTexture':
-                    self._in_file_inputs(input, socket_var, "textures")
-                    default_val = None
-
-                else:
-                    default_val = input.default_value
-                if default_val is not None:
-                    self._write(f"# {input.identifier}")
-                    self._write(f"{socket_var}.default_value = {default_val}")
-        self._write("", 0)
-
-    def _set_output_defaults(self, node: Node) -> None:
-        """
-        Some output sockets need default values set. It's rather annoying
-
-        Parameters:
-        node (Node): node for the output we're setting
-        """
-        # TODO: probably should define elsewhere
-        output_default_nodes = {'ShaderNodeValue',
-                                'ShaderNodeRGB',
-                                'ShaderNodeNormal',
-                                'CompositorNodeValue',
-                                'CompositorNodeRGB',
-                                'CompositorNodeNormal'}
-
-        if node.bl_idname not in output_default_nodes:
-            return
-
-        node_var = self._node_vars[node]
-
-        dv = node.outputs[0].default_value
-        if node.bl_idname in {'ShaderNodeRGB', 'CompositorNodeRGB'}:
-            dv = vec4_to_py_str(list(dv))
-        if node.bl_idname in {'ShaderNodeNormal', 'CompositorNodeNormal'}:
-            dv = vec3_to_py_str(dv)
-        self._write(f"{node_var}.outputs[0].default_value = {dv}")
-
-    def _in_file_inputs(self, input: bpy.types.NodeSocket, socket_var: str,
-                        type: str) -> None:
-        """
-        Sets inputs for a node input if one already exists in the blend file
-
-        Parameters:
-        input (bpy.types.NodeSocket): input socket we're setting the value for
-        socket_var (str): variable name we're using for the socket
-        type (str): from what section of bpy.data to pull the default value from
-        """
-
-        if input.default_value is None:
-            return
-        name = str_to_py_str(input.default_value.name)
-        self._write(f"if {name} in bpy.data.{type}:")
-        self._write(f"{socket_var}.default_value = bpy.data.{type}[{name}]",
-                    self._inner_indent_level + 1)
-
-    def _set_socket_defaults(self, node: Node):
-        """
-        Set input and output socket defaults
-        """
-        self._set_input_defaults(node)
-        self._set_output_defaults(node)
-
     def _set_if_in_blend_file(self, attr, setting_str: str, data_type: str
                               ) -> None:
         """
@@ -1107,9 +885,9 @@ class NTP_Operator(Operator):
         name = str_to_py_str(attr.name)
         self._write(f"if {name} in bpy.data.{data_type}:")
         self._write(f"{setting_str} = bpy.data.{data_type}[{name}]",
-                    self._inner_indent_level + 1)
-        
-    def _color_ramp_settings(self, node: Node, color_ramp_name: str) -> None:
+                    self._operator._inner_indent_level + 1)   
+         
+    def _color_ramp_settings(self, node: bpy.types.Node, color_ramp_name: str) -> None:
         """
         Replicate a color ramp node
 
@@ -1157,7 +935,7 @@ class NTP_Operator(Operator):
             color_str = vec4_to_py_str(element.color)
             self._write(f"{element_var}.color = {color_str}\n")
 
-    def _curve_mapping_settings(self, node: Node,
+    def _curve_mapping_settings(self, node: bpy.types.Node,
                                 curve_mapping_name: str) -> None:
         """
         Sets defaults for Float, Vector, and Color curves
@@ -1214,7 +992,7 @@ class NTP_Operator(Operator):
         self._write(f"# Update curve after changes")
         self._write(f"{mapping_var}.update()")
 
-    def _create_curve_map(self, node: Node, i: int, curve: bpy.types.CurveMap,
+    def _create_curve_map(self, node: bpy.types.Node, i: int, curve: bpy.types.CurveMap,
                           curve_mapping_name: str) -> None:
         """
         Helper function to create the ith curve of a node's curve mapping
@@ -1239,7 +1017,7 @@ class NTP_Operator(Operator):
                         f"(len({curve_i_var}.points.values()) - 1, 1, -1):")
             self._write(f"{curve_i_var}.points.remove("
                         f"{curve_i_var}.points[{INDEX}])",
-                        self._inner_indent_level + 1)
+                        self._operator._inner_indent_level + 1)
 
         for j, point in enumerate(curve.points):
             self._create_curve_map_point(j, point, curve_i_var)
@@ -1267,7 +1045,7 @@ class NTP_Operator(Operator):
         handle = enum_to_py_str(point.handle_type)
         self._write(f"{point_j_var}.handle_type = {handle}")
     
-    def _node_tree_settings(self, node: Node, attr_name: str) -> None:
+    def _node_tree_settings(self, node: bpy.types.Node, attr_name: str) -> None:
         """
         Processes node tree of group node if one is present
 
@@ -1284,12 +1062,12 @@ class NTP_Operator(Operator):
             node_var = self._node_vars[node]
             self._write(f"{node_var}.{attr_name} = {nt_var}")
         else:
-            self.report(
+            self._operator.report(
                 {'WARNING'}, 
                 f"NodeToPython: Node tree dependency graph " 
                 f"wasn't properly initialized! Couldn't find "
                 f"node tree {node_tree.name}")
-
+            
     def _save_image(self, img: bpy.types.Image) -> bool:
         """
         Saves an image to an image directory of the add-on
@@ -1304,11 +1082,14 @@ class NTP_Operator(Operator):
         img_str = img_to_py_str(img)
 
         if not img.has_data:
-            self.report({'WARNING'}, f"{img_str} has no data")
+            self._operator.report(
+                {'WARNING'}, 
+                f"{img_str} has no data"
+            )
             return False
 
         # create image dir if one doesn't exist
-        img_dir = os.path.join(self._addon_dir, IMAGE_DIR_NAME)
+        img_dir = os.path.join(self._operator._addon_dir, IMAGE_DIR_NAME)
         if not os.path.exists(img_dir):
             os.mkdir(img_dir)
 
@@ -1357,7 +1138,7 @@ class NTP_Operator(Operator):
         # alpha mode
         alpha_mode = enum_to_py_str(img.alpha_mode)
         self._write(f"{img_var}.alpha_mode = {alpha_mode}")
-
+    
     def _image_user_settings(self, img_user: bpy.types.ImageUser,
                              img_user_var: str) -> None:
         """
@@ -1397,6 +1178,24 @@ class NTP_Operator(Operator):
                     ad = enum_to_py_str(item.attribute_domain)
                     self._write(f"{item_var}.attribute_domain = {ad}")
 
+    if bpy.app.version >= (4, 1, 0) and bpy.app.version < (4, 2, 0):
+        def _enum_definition(self, enum_def: bpy.types.NodeEnumDefinition, 
+                             enum_def_str: str) -> None:
+            """
+            Set enum definition item for a node
+            
+            Parameters:
+            enum_def (bpy.types.NodeEnumDefinition): enum definition to replicate
+            enum_def_str (str): string for the generated enum definition
+            """
+            self._write(f"{enum_def_str}.enum_items.clear()")
+            for i, enum_item in enumerate(enum_def.enum_items):
+                name = str_to_py_str(enum_item.name)
+                self._write(f"{enum_def_str}.enum_items.new({name})")
+                if enum_item.description != "":
+                    self._write(f"{enum_def_str}.enum_items[{i}].description = "
+                                f"{str_to_py_str(enum_item.description)}")
+                    
     if bpy.app.version >= (4, 1, 0):
         def _index_switch_items(self, switch_items: bpy.types.NodeIndexSwitchItems,   
                                 items_str: str) -> None:
@@ -1432,25 +1231,7 @@ class NTP_Operator(Operator):
 
                 if bake_item.is_attribute:
                     self._write(f"{bake_items_str}[{i}].is_attribute = True")
-
-    if bpy.app.version >= (4, 1, 0) and bpy.app.version < (4, 2, 0):
-        def _enum_definition(self, enum_def: bpy.types.NodeEnumDefinition, 
-                             enum_def_str: str) -> None:
-            """
-            Set enum definition item for a node
-            
-            Parameters:
-            enum_def (bpy.types.NodeEnumDefinition): enum definition to replicate
-            enum_def_str (str): string for the generated enum definition
-            """
-            self._write(f"{enum_def_str}.enum_items.clear()")
-            for i, enum_item in enumerate(enum_def.enum_items):
-                name = str_to_py_str(enum_item.name)
-                self._write(f"{enum_def_str}.enum_items.new({name})")
-                if enum_item.description != "":
-                    self._write(f"{enum_def_str}.enum_items[{i}].description = "
-                                f"{str_to_py_str(enum_item.description)}")
-
+    
     if bpy.app.version >= (4, 2, 0):
         def _capture_attribute_items(self, capture_attribute_items: bpy.types.NodeGeometryCaptureAttributeItems, capture_attrs_str: str) -> None:
             """
@@ -1690,8 +1471,188 @@ class NTP_Operator(Operator):
             look_str = enum_to_py_str(view_settings.look)
             self._write(f"{view_settings_str}.look = {look_str}")
 
+    def _hide_hidden_sockets(self, node: bpy.types.Node) -> None:
+        """
+        Hide hidden sockets
 
-    def _set_parents(self, node_tree: NodeTree) -> None:
+        Parameters:
+        node (Node): node object we're copying socket settings from
+        """
+        node_var = self._node_vars[node]
+
+        for i, socket in enumerate(node.inputs):
+            if socket.hide is True:
+                self._write(f"{node_var}.inputs[{i}].hide = True")
+        for i, socket in enumerate(node.outputs):
+            if socket.hide is True:
+                self._write(f"{node_var}.outputs[{i}].hide = True")
+
+    def _set_socket_defaults(self, node: bpy.types.Node) -> None:
+        """
+        Set input and output socket defaults
+        """
+        self._set_input_defaults(node)
+        self._set_output_defaults(node)
+
+    def _set_input_defaults(self, node: bpy.types.Node) -> None:
+        """
+        Sets defaults for input sockets
+
+        Parameters:
+        node (Node): node we're setting inputs for
+        """
+        if node.bl_idname == 'NodeReroute':
+            return
+
+        node_var = self._node_vars[node]
+
+        for i, input in enumerate(node.inputs):
+            if input.bl_idname not in DONT_SET_DEFAULTS and not input.is_linked:
+                if bpy.app.version >= (3, 4, 0):
+                    if (not self._operator._set_unavailable_defaults) and input.is_unavailable:
+                        continue
+                    
+                # TODO: this could be cleaner
+                socket_var = f"{node_var}.inputs[{i}]"
+
+                # colors
+                if input.bl_idname == 'NodeSocketColor':
+                    default_val = vec4_to_py_str(input.default_value)
+
+                # vector types
+                elif "Vector" in input.bl_idname:
+                    if "2D" in input.bl_idname:
+                        default_val = vec2_to_py_str(input.default_value)
+                    elif "4D" in input.bl_idname:
+                        default_val = vec4_to_py_str(input.default_value)
+                    else:
+                        default_val = vec3_to_py_str(input.default_value)
+
+                # rotation types
+                elif input.bl_idname == 'NodeSocketRotation':
+                    default_val = vec3_to_py_str(input.default_value)
+
+                # strings
+                elif input.bl_idname in {'NodeSocketString', 'NodeSocketStringFilePath'}:
+                    default_val = str_to_py_str(input.default_value)
+
+                #menu
+                elif input.bl_idname == 'NodeSocketMenu':
+                    if input.default_value == '':
+                        continue
+                    default_val = enum_to_py_str(input.default_value)
+
+                # images
+                elif input.bl_idname == 'NodeSocketImage':
+                    img = getattr(input, "default_value")
+                    if img is not None:
+                        if self._operator._addon_dir != "":  # write in a better way
+                            if self._save_image(img):
+                                self._load_image(img, f"{socket_var}.default_value")
+                        else:
+                            self._in_file_inputs(input, socket_var, "images")
+                    default_val = None
+
+                # materials
+                elif input.bl_idname == 'NodeSocketMaterial':
+                    self._in_file_inputs(input, socket_var, "materials")
+                    default_val = None
+
+                # collections
+                elif input.bl_idname == 'NodeSocketCollection':
+                    self._in_file_inputs(input, socket_var, "collections")
+                    default_val = None
+
+                # objects
+                elif input.bl_idname == 'NodeSocketObject':
+                    self._in_file_inputs(input, socket_var, "objects")
+                    default_val = None
+
+                # textures
+                elif input.bl_idname == 'NodeSocketTexture':
+                    self._in_file_inputs(input, socket_var, "textures")
+                    default_val = None
+
+                else:
+                    default_val = input.default_value
+
+                if default_val is not None:
+                    self._write(f"# {input.identifier}")
+                    self._write(f"{socket_var}.default_value = {default_val}")
+        self._write("", 0)
+
+    def _set_output_defaults(self, node: bpy.types.Node) -> None:
+        """
+        Some output sockets need default values set. It's rather annoying
+
+        Parameters:
+        node (Node): node for the output we're setting
+        """
+        # TODO: probably should define elsewhere
+        OUTPUT_SOCKET_DEFAULT_NODES = {
+            'ShaderNodeValue',
+            'ShaderNodeRGB',
+            'ShaderNodeNormal',
+            'CompositorNodeValue',
+            'CompositorNodeRGB',
+            'CompositorNodeNormal'
+        }
+
+        if node.bl_idname not in OUTPUT_SOCKET_DEFAULT_NODES:
+            return
+
+        node_var = self._node_vars[node]
+
+        dv = node.outputs[0].default_value
+        if node.bl_idname in {'ShaderNodeRGB', 'CompositorNodeRGB'}:
+            dv = vec4_to_py_str(list(dv))
+        if node.bl_idname in {'ShaderNodeNormal', 'CompositorNodeNormal'}:
+            dv = vec3_to_py_str(dv)
+        self._write(f"{node_var}.outputs[0].default_value = {dv}")
+
+    def _in_file_inputs(self, input: bpy.types.NodeSocket, socket_var: str,
+                        type: str) -> None:
+        """
+        Sets inputs for a node input if one already exists in the blend file
+
+        Parameters:
+        input (bpy.types.NodeSocket): input socket we're setting the value for
+        socket_var (str): variable name we're using for the socket
+        type (str): from what section of bpy.data to pull the default value from
+        """
+        dv = getattr(input, "default_value")
+        if dv is None:
+            return
+        name = str_to_py_str(dv.name)
+        self._write(f"if {name} in bpy.data.{type}:")
+        self._write(f"{socket_var}.default_value = bpy.data.{type}[{name}]",
+                    self._operator._inner_indent_level + 1)
+
+    if bpy.app.version >= (3, 6, 0):
+        def _process_zones(self, zone_input_list: list[bpy.types.Node]) -> None:
+            """
+            Recreates a zone
+            zone_input_list (list[bpy.types.Node]): list of zone input 
+                nodes
+            """
+            for input_node in zone_input_list:
+                zone_output = getattr(input_node, "paired_output")
+
+                zone_input_var = self._node_vars[input_node]
+                zone_output_var = self._node_vars[zone_output]
+
+                self._write(f"# Process zone input {input_node.name}")
+                self._write(f"{zone_input_var}.pair_with_output"
+                            f"({zone_output_var})")
+
+                #must set defaults after paired with output
+                self._set_socket_defaults(input_node)
+                self._set_socket_defaults(zone_output)
+
+            if zone_input_list:
+                self._write("", 0)
+
+    def _set_parents(self, node_tree: bpy.types.NodeTree) -> None:
         """
         Sets parents for all nodes, mostly used to put nodes in frames
 
@@ -1710,7 +1671,7 @@ class NTP_Operator(Operator):
         if parent_comment:
             self._write("", 0)
 
-    def _set_locations(self, node_tree: NodeTree) -> None:
+    def _set_locations(self, node_tree: bpy.types.NodeTree) -> None:
         """
         Set locations for all nodes
 
@@ -1726,14 +1687,14 @@ class NTP_Operator(Operator):
         if node_tree.nodes:
             self._write("", 0)
 
-    def _set_dimensions(self, node_tree: NodeTree) -> None:
+    def _set_dimensions(self, node_tree: bpy.types.NodeTree) -> None:
         """
         Set dimensions for all nodes
 
         Parameters:
         node_tree (NodeTree): node tree we're obtaining nodes from
         """
-        if not self._should_set_dimensions:
+        if not self._operator._should_set_dimensions:
             return
 
         self._write(f"# Set dimensions")
@@ -1744,7 +1705,7 @@ class NTP_Operator(Operator):
         if node_tree.nodes:
             self._write("", 0)
 
-    def _init_links(self, node_tree: NodeTree) -> None:
+    def _init_links(self, node_tree: bpy.types.NodeTree) -> None:
         """
         Create all the links between nodes
 
@@ -1762,6 +1723,19 @@ class NTP_Operator(Operator):
                 links = sorted(links, key=lambda link: link.multi_input_sort_id)
 
         for link in links:
+            if link.from_node is None:
+                self._operator.report(
+                    {'WARNING'},
+                    "Link's from_node was None. This shouldn't happen"
+                )
+                continue
+            if link.to_node is None:
+                self._operator.report(
+                    {'WARNING'},
+                    "Link's to_node was None. This shouldn't happen"
+                )
+                continue
+
             in_node_var = self._node_vars[link.from_node]
             input_socket = link.from_socket
 
@@ -1795,127 +1769,4 @@ class NTP_Operator(Operator):
             _func()
         self._write_after_links = []
         self._write("", 0)
-            
 
-    def _set_node_tree_properties(self, node_tree: NodeTree) -> None:
-        nt_var = self._node_tree_vars[node_tree]
-
-        if bpy.app.version >= (4, 2, 0):
-            color_tag_str = enum_to_py_str(node_tree.color_tag)
-            self._write(f"{nt_var}.color_tag = {color_tag_str}")
-            desc_str = str_to_py_str(node_tree.description)
-            self._write(f"{nt_var}.description = {desc_str}")
-        if bpy.app.version >= (4, 3, 0):
-            default_width = node_tree.default_group_node_width
-            self._write(f"{nt_var}.default_group_node_width = {default_width}")
-
-    def _hide_hidden_sockets(self, node: Node) -> None:
-        """
-        Hide hidden sockets
-
-        Parameters:
-        node (Node): node object we're copying socket settings from
-        """
-        node_var = self._node_vars[node]
-
-        for i, socket in enumerate(node.inputs):
-            if socket.hide is True:
-                self._write(f"{node_var}.inputs[{i}].hide = True")
-        for i, socket in enumerate(node.outputs):
-            if socket.hide is True:
-                self._write(f"{node_var}.outputs[{i}].hide = True")
-
-    def _create_menu_func(self) -> None:
-        """
-        Creates the menu function
-        """
-        self._write("def menu_func(self, context):", 0)
-        self._write(f"self.layout.operator({self._class_name}.bl_idname)\n", 1)
-
-    def _create_register_func(self) -> None:
-        """
-        Creates the register function
-        """
-        self._write("def register():", 0)
-        self._write(f"bpy.utils.register_class({self._class_name})", 1)
-        self._write(f"bpy.types.{self._menu_id}.append(menu_func)\n", 1)
-
-    def _create_unregister_func(self) -> None:
-        """
-        Creates the unregister function
-        """
-        self._write("def unregister():", 0)
-        self._write(f"bpy.utils.unregister_class({self._class_name})", 1)
-        self._write(f"bpy.types.{self._menu_id}.remove(menu_func)\n", 1)
-
-    def _create_main_func(self) -> None:
-        """
-        Creates the main function
-        """
-        self._write("if __name__ == \"__main__\":", 0)
-        self._write("register()", 1)
-
-    def _create_license(self) -> None:
-        if not self._should_create_license:
-            return
-        if self._license == 'OTHER':
-            return
-        license_file = open(f"{self._addon_dir}/LICENSE", "w")
-        year = datetime.date.today().year
-        license_txt = license_templates[self._license](year, self._author_name)
-        license_file.write(license_txt)
-        license_file.close()
-
-    if bpy.app.version >= (4, 2, 0):
-        def _create_manifest(self) -> None:
-            manifest = open(f"{self._addon_dir}/blender_manifest.toml", "w")
-            manifest.write("schema_version = \"1.0.0\"\n\n")
-            manifest.write(f"id = {str_to_py_str(self._idname)}\n")
-
-            manifest.write(f"version = {version_to_manifest_str(self._version)}\n")
-            manifest.write(f"name = {str_to_py_str(self._name)}\n")
-            if self._description == "":
-                self._description = self._name
-            manifest.write(f"tagline = {str_to_py_str(self._description)}\n")
-            manifest.write(f"maintainer = {str_to_py_str(self._author_name)}\n")
-            manifest.write("type = \"add-on\"\n")
-            manifest.write(f"blender_version_min = {version_to_manifest_str(bpy.app.version)}\n")
-            if self._license != 'OTHER':
-                manifest.write(f"license = [{str_to_py_str(self._license)}]\n")
-            else:
-                self.report({'WARNING'}, "No license selected. Please add a license to the manifest file")
-
-            manifest.close()
-
-    def _zip_addon(self) -> None:
-        """
-        Zips up the addon and removes the directory
-        """
-        shutil.make_archive(self._zip_dir, "zip", self._zip_dir)
-        shutil.rmtree(self._zip_dir)
-
-    # ABSTRACT
-    def _process_node(self, node: Node, ntp_node_tree: NTP_NodeTree) -> None:
-        return
-
-    # ABSTRACT
-    def _process_node_tree(self, node_tree: NodeTree) -> None:
-        return
-
-    def _report_finished(self, object: str):
-        """
-        Alert user that NTP is finished
-
-        Parameters:
-        object (str): the copied node tree or encapsulating structure
-            (geometry node modifier, material, scene, etc.)
-        """
-        if self._mode == 'SCRIPT':
-            location = "clipboard"
-        else:
-            location = self._dir_path
-        self.report({'INFO'}, f"NodeToPython: Saved {object} to {location}")
-
-    # ABSTRACT
-    def execute(self):
-        return {'FINISHED'}

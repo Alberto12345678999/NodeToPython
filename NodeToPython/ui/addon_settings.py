@@ -1,6 +1,7 @@
 import bpy
 
 from . import settings
+from ..export.ntp_options import NTP_PG_Options
 
 class NTP_PT_AddonSettings(bpy.types.Panel):
     bl_idname = "NTP_PT_addon_settings"
@@ -17,12 +18,13 @@ class NTP_PT_AddonSettings(bpy.types.Panel):
         
     @classmethod
     def poll(cls, context):
-        return context.scene.ntp_options.mode == 'ADDON'
+        options: NTP_PG_Options = getattr(context.scene, "ntp_options")
+        return options.mode == 'ADDON'
     
     def draw(self, context):
         layout = self.layout
         layout.operator_context = 'INVOKE_DEFAULT'
-        ntp_options = context.scene.ntp_options
+        ntp_options : NTP_PG_Options = getattr(context.scene, "ntp_options")
 
         addon_options = [
             "dir_path",

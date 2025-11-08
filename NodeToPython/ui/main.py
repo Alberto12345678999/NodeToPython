@@ -1,6 +1,8 @@
 import bpy
 
-from ..export_operator import NTP_OT_Export, NodeGroupGatherer
+from ..export.node_group_gatherer import NodeGroupGatherer
+from ..export.ntp_operator import NTP_OT_Export
+from ..export.ntp_options import NTP_PG_Options
 
 import pathlib
 
@@ -27,13 +29,13 @@ class NTP_PT_Main(bpy.types.Panel):
         col = layout.column(align=True)
         row = col.row()
 
-        ntp_options = context.scene.ntp_options
+        ntp_options : NTP_PG_Options = getattr(context.scene, "ntp_options")
         location = ""
         export_icon = ''
         if ntp_options.mode == 'SCRIPT':
             location = "clipboard"
             export_icon = 'COPYDOWN'
-        elif ntp_options.mode == 'ADDON':
+        else: # mode == 'ADDON'
             location = f"{pathlib.PurePath(ntp_options.dir_path).name}/"
             export_icon = 'FILE_FOLDER'
 
