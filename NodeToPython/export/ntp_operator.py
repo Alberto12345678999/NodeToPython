@@ -122,18 +122,12 @@ class NTP_OT_Export(bpy.types.Operator):
 
         for group_type, groups in gatherer.node_groups.items():
             for obj in groups:
-                match group_type:
-                    case NodeGroupType.COMPOSITOR_NODE_GROUP | NodeGroupType.SCENE:
-                        exporter = CompositorExporter(self, obj.name, group_type)
-                    case NodeGroupType.GEOMETRY_NODE_GROUP:
-                        exporter = GeometryNodesExporter(self, obj.name, group_type)
-                    case (  NodeGroupType.LIGHT 
-                        | NodeGroupType.LINE_STYLE
-                        | NodeGroupType.MATERIAL
-                        | NodeGroupType.SHADER_NODE_GROUP
-                        | NodeGroupType.WORLD
-                    ):
-                        exporter = ShaderExporter(self, obj.name, group_type)
+                if group_type.is_compositor():
+                    exporter = CompositorExporter(self, obj.name, group_type)
+                elif group_type.is_geometry():
+                    exporter = GeometryNodesExporter(self, obj.name, group_type)
+                elif group_type.is_shader():
+                    exporter = ShaderExporter(self, obj.name, group_type)
                 exporter.export()
 
         if self._mode == 'ADDON':

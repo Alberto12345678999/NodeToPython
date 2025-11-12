@@ -27,9 +27,7 @@ class GeometryNodesExporter(NodeTreeExporter):
         obj_name: str,
         group_type: NodeGroupType
     ):
-        if group_type not in {
-            NodeGroupType.GEOMETRY_NODE_GROUP
-        }:
+        if not group_type.is_geometry():
             ntp_operator.report(
                 {'ERROR'},
                 f"Cannot initialize GeometryNodesExporter with group type {group_type}"

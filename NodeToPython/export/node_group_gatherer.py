@@ -12,6 +12,34 @@ class NodeGroupType(Enum):
     SHADER_NODE_GROUP = auto()
     WORLD = auto()
 
+    def is_group(self) -> bool:
+        return self in {
+            NodeGroupType.COMPOSITOR_NODE_GROUP,
+            NodeGroupType.GEOMETRY_NODE_GROUP,
+            NodeGroupType.SHADER_NODE_GROUP
+        }
+
+    def is_obj(self) -> bool:
+        return not self.is_group
+    
+    def is_compositor(self) -> bool:
+        return self in {
+            NodeGroupType.COMPOSITOR_NODE_GROUP,
+            NodeGroupType.SCENE
+        }
+    def is_geometry(self) -> bool:
+        return self in {
+            NodeGroupType.GEOMETRY_NODE_GROUP
+        }
+    def is_shader(self) -> bool:
+        return self in {
+            NodeGroupType.LIGHT,
+            NodeGroupType.LINE_STYLE,
+            NodeGroupType.MATERIAL,
+            NodeGroupType.SHADER_NODE_GROUP,
+            NodeGroupType.WORLD
+        }
+
 class NodeGroupGatherer:
     def __init__(self):
         self.node_groups : dict[NodeGroupType, list] = {

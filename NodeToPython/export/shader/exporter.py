@@ -21,13 +21,7 @@ class ShaderExporter(NodeTreeExporter):
         obj_name: str, 
         group_type: NodeGroupType
     ):
-        if group_type not in {
-            NodeGroupType.LIGHT,
-            NodeGroupType.LINE_STYLE,
-            NodeGroupType.MATERIAL,
-            NodeGroupType.SHADER_NODE_GROUP,
-            NodeGroupType.WORLD
-        }:
+        if not group_type.is_shader():
             ntp_operator.report(
                 {'ERROR'},
                 f"Cannot initialize ShaderExporter with group type {group_type}"
@@ -79,7 +73,7 @@ class ShaderExporter(NodeTreeExporter):
             case NodeGroupType.WORLD:
                 self._obj = bpy.data.worlds[self._obj_name]
         
-        if self._group_type == NodeGroupType.SHADER_NODE_GROUP:
+        if self._group_type.is_group():
             self._base_node_tree = bpy.data.node_groups[self._obj_name]
         else:
             self._base_node_tree = self._obj.node_tree

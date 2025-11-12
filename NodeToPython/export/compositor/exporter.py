@@ -1,7 +1,7 @@
 import bpy
 
 from ..node_group_gatherer import NodeGroupType
-from ..node_settings import NTPNodeSetting
+from ..node_settings import NTPNodeSetting, ST
 from ..node_tree_exporter import NodeTreeExporter, INDEX
 from ..ntp_node_tree import NTP_NodeTree
 from ..ntp_operator import NTP_OT_Export
@@ -21,10 +21,7 @@ class CompositorExporter(NodeTreeExporter):
         obj_name: str,
         group_type: NodeGroupType
     ):
-        if group_type not in {
-            NodeGroupType.COMPOSITOR_NODE_GROUP,
-            NodeGroupType.SCENE
-        }:
+        if not group_type.is_compositor():
             ntp_operator.report(
                 {'ERROR'},
                 f"Cannot initialize CompositorExporter with group type {group_type}"
