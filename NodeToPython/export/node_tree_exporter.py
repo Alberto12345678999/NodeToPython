@@ -98,9 +98,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         # Dictionary to keep track of node tree->variable name pairs
         self._node_tree_vars: dict[bpy.types.NodeTree, str] = {}
 
-        # Library trees to link
-        self._lib_trees: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
-
         # Write functions after nodes are mostly initialized and linked up
         self._write_after_links: list[Callable] = []
     
@@ -116,13 +113,12 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             
         self._create_obj()
 
-        tree_to_process : list[bpy.types.NodeTree] = self._topological_sort(
-            self._base_node_tree
-        )
+        nt_info = self._operator._node_trees[self._base_node_tree]
+        trees_to_process : list[bpy.types.NodeTree] = nt_info._dependencies
 
         self._import_essential_libs()
 
-        for node_tree in tree_to_process:
+        for node_tree in trees_to_process:
             self._process_node_tree(node_tree)
 
         if self._operator._mode == 'ADDON':
@@ -185,94 +181,15 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         elif self._operator._mode == 'SCRIPT':
             indent_level = 0
         return indent_level
-    
-    def _topological_sort(
-        self, 
-        node_tree: bpy.types.NodeTree
-    ) -> list[bpy.types.NodeTree]:
-        """
-        Perform a topological sort on the node graph to determine dependencies 
-        and which node groups need processed first
-
-        Parameters:
-        node_tree (NodeTree): the base node tree to convert
-
-        Returns:
-        (list[NodeTree]): the node trees in order of processing
-        """
-        group_node_type = ''
-        if isinstance(node_tree, bpy.types.CompositorNodeTree):
-            group_node_type = 'CompositorNodeGroup'
-        elif isinstance(node_tree, bpy.types.GeometryNodeTree):
-            group_node_type = 'GeometryNodeGroup'
-        elif isinstance(node_tree, bpy.types.ShaderNodeTree):
-            group_node_type = 'ShaderNodeGroup'
-        
-        visited = set()
-        result: list[bpy.types.NodeTree] = []
-
-        def dfs(nt: bpy.types.NodeTree) -> None:
-            """
-            Helper function to perform depth-first search on a NodeTree
-
-            Parameters:
-            nt (NodeTree): current node tree in the dependency graph
-            """
-            if nt is None:
-                self._operator.report(
-                    {'ERROR'}, 
-                    "NodeToPython: Found an invalid node tree. "
-                    "Are all data blocks valid?"
-                )
-                return
-            
-            if (self._operator._link_external_node_groups 
-                and nt.library is not None):
-                bpy_lib_path = bpy.path.abspath(nt.library.filepath)
-                lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
-                bpy_datafiles_path = bpy.path.abspath(
-                    bpy.utils.system_resource('DATAFILES')
-                )
-                datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
-                is_lib_essential = lib_path.is_relative_to(datafiles_path)
-
-                if is_lib_essential:
-                    relative_path = lib_path.relative_to(datafiles_path)
-                    if relative_path not in self._lib_trees:
-                        self._lib_trees[relative_path] = []
-                    self._lib_trees[relative_path].append(nt)
-                    return
-                else:
-                    print(f"Library {lib_path} didn't seem essential, copying node groups")
-            
-            if nt not in visited:
-                visited.add(nt)
-                group_nodes = [node for node in nt.nodes
-                               if node.bl_idname == group_node_type]
-                for group_node in group_nodes:
-                    node_nt = getattr(group_node, "node_tree")
-                    if node_nt is None:
-                        self._operator.report(
-                            {'ERROR'}, 
-                            "NodeToPython: Found an invalid node tree. "
-                            "Are all data blocks valid?"
-                        )
-                        continue
-                    if node_nt not in visited:
-                        dfs(node_nt)
-                result.append(nt)
-        
-        dfs(node_tree)
-
-        return result
 
     def _import_essential_libs(self) -> None:
-        if len(self._lib_trees) == 0:
+        nt_info = self._operator._node_trees[self._base_node_tree]
+        if len(nt_info._lib_dependencies) == 0:
             return
         self._operator._inner_indent_level -= 1
         self._write("# Import node groups from Blender essentials library")
         self._write(f"{DATAFILES_PATH} = bpy.utils.system_resource('DATAFILES')")
-        for path, node_trees in self._lib_trees.items():
+        for path, node_trees in nt_info._lib_dependencies.items():
             self._write(f"{LIB_RELPATH} = {str_to_py_str(str(path))}")
             self._write(f"{LIB_PATH} = os.path.join({DATAFILES_PATH}, {LIB_RELPATH})")
             self._write(f"with bpy.data.libraries.load({LIB_PATH}, link=True) "
@@ -340,7 +257,9 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._write("", 0)
 
         #create node group
-        self._write(f"{nt_var} = {nt_var}_node_group()\n", 
+        node_tree_info = self._operator._node_trees[node_tree]
+        node_tree_info._func = f"{nt_var}_node_group()"
+        self._write(f"{nt_var} = {node_tree_info._func}\n", 
                     self._operator._outer_indent_level)
     
     @abc.abstractmethod
@@ -1057,10 +976,16 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         if node_tree is None:
             return
         
+        node_var = self._node_vars[node]
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]
-            node_var = self._node_vars[node]
             self._write(f"{node_var}.{attr_name} = {nt_var}")
+        elif node_tree in self._operator._node_trees:
+            # TODO: probably should be done similar to lib trees
+            node_tree_info = self._operator._node_trees[node_tree]
+            if self._operator._mode == 'ADDON':
+                self._write(f"import {node_tree_info._module}")
+            self._write(f"{node_var}.{attr_name} = {node_tree_info._func}")
         else:
             self._operator.report(
                 {'WARNING'}, 

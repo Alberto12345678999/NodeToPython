@@ -39,10 +39,29 @@ class NodeGroupType(Enum):
             NodeGroupType.SHADER_NODE_GROUP,
             NodeGroupType.WORLD
         }
+    
+NTPObject = ( 
+      bpy.types.NodeTree 
+    | bpy.types.Scene 
+    | bpy.types.Light
+    | bpy.types.FreestyleLineStyle
+    | bpy.types.Material
+    | bpy.types.World
+)
+
+def get_base_node_tree(
+    ntp_obj: NTPObject, group_type: NodeGroupType
+ ) -> bpy.types.NodeTree:
+    if group_type.is_group():
+        return ntp_obj
+    elif group_type == NodeGroupType.SCENE and bpy.app.version >= (5, 0, 0):
+        return getattr(ntp_obj, "compositing_node_group")
+    else:
+        return getattr(ntp_obj, "node_tree")
 
 class NodeGroupGatherer:
     def __init__(self):
-        self.node_groups : dict[NodeGroupType, list] = {
+        self.node_groups : dict[NodeGroupType, list[NTPObject]] = {
             NodeGroupType.COMPOSITOR_NODE_GROUP : [],
             NodeGroupType.SCENE : [],
             NodeGroupType.GEOMETRY_NODE_GROUP : [],
