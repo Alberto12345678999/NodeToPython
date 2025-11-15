@@ -133,7 +133,6 @@ class NTP_OT_Export(bpy.types.Operator):
 
         objs_to_export = self._get_objects_to_export(context)
         for nt_info in objs_to_export:
-            print(f"Exporting {nt_info._obj.name}")
             if self._mode == 'ADDON':
                 self._file.close()
                 self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
@@ -377,7 +376,6 @@ class NTP_OT_Export(bpy.types.Operator):
                     print(f"Library {lib_path} didn't seem essential, copying node groups")
             
             if nt not in self._visited:
-                print(f"Visiting {nt.name}")
                 self._visited.add(nt)
                 if nt not in self._node_trees:
                     self._node_trees[nt] = NodeTreeInfo()
@@ -397,7 +395,6 @@ class NTP_OT_Export(bpy.types.Operator):
                     if node_nt not in self._visited:
                         dfs(node_nt)
                 self._export_order.append(self._node_trees[nt])
-                print(f"Adding {nt.name} to export order list")
         dfs(node_tree)
 
     def _create_menu_func(self) -> None:
