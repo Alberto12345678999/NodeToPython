@@ -28,7 +28,7 @@ class NTP_PT_AddonSettings(bpy.types.Panel):
 
         addon_options = [
             "dir_path",
-            "name_override",
+            "name",
             "description",
             "author_name",
             "version",

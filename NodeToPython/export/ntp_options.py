@@ -74,10 +74,10 @@ class NTP_PG_Options(bpy.types.PropertyGroup):
         description="Save location if generating an add-on",
         default = "//"
     )
-    name_override : bpy.props.StringProperty(
-        name = "Name Override",
-        description="Name used for the add-on's, default is node group name",
-        default = ""
+    name : bpy.props.StringProperty(
+        name = "Name",
+        description="Name used for the add-on's",
+        default = "My Add-on"
     )
     description : bpy.props.StringProperty(
         name = "Description",

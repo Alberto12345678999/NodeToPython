@@ -28,7 +28,8 @@ class NodeTreeInfo():
         self._func : str = ""
         self._module : str = ""
         self._is_base : bool = False
-        self._dependencies: list[bpy.types.NodeTree] = []
+        self._dependencies: set[bpy.types.NodeTree] = set()
+        self._base_dependents: set[bpy.types.NodeTree] = set()
         self._base_tree_dependencies: list[bpy.types.NodeTree] = []
         self._lib_dependencies: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
         self._obj: NTPObject = None
@@ -110,16 +111,12 @@ class NTP_OT_Export(bpy.types.Operator):
             self._outer_indent_level = 2
             self._inner_indent_level = 3
 
-            if not self._setup_addon_directories(self.name):
+            if not self._setup_addon_directories(self._name):
                 return {'CANCELLED'}
             
             self._file = open(f"{self._addon_dir}/__init__.py", 'w')
 
-            self._create_bl_info(self.name)
             self._create_imports()
-
-            #self._init_operator(self.obj_var, self.name)
-            #self._write("def execute(self, context):", 1)
 
         elif self._mode == 'SCRIPT':
             self._file = StringIO("")
@@ -203,7 +200,7 @@ class NTP_OT_Export(bpy.types.Operator):
         #Addon
         elif options.mode == 'ADDON':
             self._dir_path = bpy.path.abspath(options.dir_path)
-            self._name_override = options.name_override
+            self._name = options.name
             self._description = options.description
             self._author_name = options.author_name
             self._version = options.version
@@ -247,31 +244,6 @@ class NTP_OT_Export(bpy.types.Operator):
         
         return True
 
-    def _create_bl_info(self, name: str) -> None:
-        """
-        Sets up the bl_info and imports the Blender API
-
-        Parameters:
-        name (str): name of the add-on
-        """
-
-        self._write("bl_info = {", 0)
-        self._name = name
-        if self._name_override and self._name_override != "":
-            self._name = self._name_override
-        self._write(f"\"name\" : {str_to_py_str(self._name)},", 1)
-        if self._description and self._description != "":
-            self._write(f"\"description\" : {str_to_py_str(self._description)},", 1)
-        self._write(f"\"author\" : {str_to_py_str(self._author_name)},", 1)
-        self._write(f"\"version\" : {vec3_to_py_str(self._version)},", 1)
-        self._write(f"\"blender\" : {bpy.app.version},", 1)
-        self._write(f"\"location\" : {str_to_py_str(self._location)},", 1)
-        category = self._category
-        if category == "Custom":
-            category = self._custom_category
-        self._write(f"\"category\" : {str_to_py_str(category)},", 1)
-        self._write("}\n", 0)
-
     def _create_imports(self) -> None:
         self._write("import bpy", 0)
         self._write("import mathutils", 0)
@@ -297,6 +269,7 @@ class NTP_OT_Export(bpy.types.Operator):
                     file = f"{clean_string(base_tree.name)}"
                 else:
                     file = ""
+                print(f"Setting object {obj.name} module to {file}")
                 node_info._module = file
 
                 node_info._is_base = True
@@ -310,6 +283,29 @@ class NTP_OT_Export(bpy.types.Operator):
             for obj in groups:
                 base_tree = get_base_node_tree(obj, group_type)
                 self._topological_sort(base_tree)
+
+        # Probably a better way algorithmically of handling this,
+        # need to move on though. Should be fast enough for reasonably sized
+        # node tree dependency graphs
+        for group_type, groups in gatherer.node_groups.items():
+            common_module = ""
+            if group_type.is_compositor():
+                common_module = "compositor_common"
+            elif group_type.is_geometry():
+                common_module = "geometry_common"
+            elif group_type.is_shader():
+                common_module = "shader_common"
+
+            for obj in groups:
+                base_tree = get_base_node_tree(obj, group_type)
+                nt_info = self._node_trees[base_tree]
+                for dependency in nt_info._dependencies:
+                    dependency_info = self._node_trees[dependency]
+                    base_dependents = dependency_info._base_dependents
+                    base_dependents.add(base_tree)
+                    if len(base_dependents) > 1:
+                        dependency_info._module = common_module
+
         return self._export_order
 
     def _topological_sort(
@@ -350,12 +346,15 @@ class NTP_OT_Export(bpy.types.Operator):
                     "Are all data blocks valid?"
                 )
                 return
-            
+            """
             if self._mode == 'ADDON':
                 if nt in self._node_trees and nt != node_tree:
                     if self._node_trees[nt]._module != node_info._module:
-                        # has multiple parents, needs referenced separately
-                        self._node_trees[nt]._module = common_module
+                        if not self._node_trees[nt]._is_base:
+                            # has multiple parents, needs referenced separately
+                            print(f"Found duplicate parent! Setting {nt.name} module to {common_module}")
+                            self._node_trees[nt]._module = common_module
+            """
             
             if (self._link_external_node_groups 
                 and nt.library is not None):
@@ -374,13 +373,14 @@ class NTP_OT_Export(bpy.types.Operator):
                     return
                 else:
                     print(f"Library {lib_path} didn't seem essential, copying node groups")
-            
+
             if nt not in self._visited:
                 self._visited.add(nt)
                 if nt not in self._node_trees:
                     self._node_trees[nt] = NodeTreeInfo()
                     self._node_trees[nt]._obj = nt
-                self._node_trees[nt]._module = node_tree.name # TODO
+                    self._node_trees[nt]._module = clean_string(node_tree.name)
+                print(f"Node tree not visited yet. Setting {nt.name} module to {self._node_trees[nt]._module}")
                 group_nodes = [node for node in nt.nodes
                                if node.bl_idname == group_node_type]
                 for group_node in group_nodes:
@@ -392,9 +392,11 @@ class NTP_OT_Export(bpy.types.Operator):
                             "Are all data blocks valid?"
                         )
                         continue
+                    self._node_trees[nt]._dependencies.add(node_nt)
                     if node_nt not in self._visited:
                         dfs(node_nt)
                 self._export_order.append(self._node_trees[nt])
+                node_info._dependencies.update(self._node_trees[nt]._dependencies)
         dfs(node_tree)
 
     def _create_menu_func(self) -> None:
@@ -442,7 +444,7 @@ class NTP_OT_Export(bpy.types.Operator):
         def _create_manifest(self) -> None:
             manifest = open(f"{self._addon_dir}/blender_manifest.toml", "w")
             manifest.write("schema_version = \"1.0.0\"\n\n")
-            idname = self._name_override.lower() #TODO: this isn't safe
+            idname = self._name.lower() #TODO: this isn't safe
             manifest.write(f"id = {str_to_py_str(idname)}\n")
 
             manifest.write(f"version = {version_to_manifest_str(self._version)}\n")
