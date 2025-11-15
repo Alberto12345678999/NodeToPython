@@ -33,6 +33,7 @@ class NodeTreeInfo():
         self._base_tree_dependencies: list[bpy.types.NodeTree] = []
         self._lib_dependencies: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
         self._obj: NTPObject = None
+        self._base_tree : bpy.types.NodeTree = None
         self._group_type: NodeGroupType = NodeGroupType.GEOMETRY_NODE_GROUP
         self._name_var : str = ""
 
@@ -133,12 +134,20 @@ class NTP_OT_Export(bpy.types.Operator):
             if self._mode == 'ADDON':
                 self._file.close()
                 self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
+
+                if nt_info._is_base:
+                    self._outer_indent_level = 2
+                    self._inner_indent_level = 3
+                else:
+                    self._outer_indent_level = 0
+                    self._inner_indent_level = 1
+
             if nt_info._group_type.is_compositor():
-                exporter = CompositorExporter(self, nt_info._obj.name, nt_info._group_type)
+                exporter = CompositorExporter(self, nt_info)
             elif nt_info._group_type.is_geometry():
-                exporter = GeometryNodesExporter(self, nt_info._obj.name, nt_info._group_type)
+                exporter = GeometryNodesExporter(self, nt_info)
             elif nt_info._group_type.is_shader():
-                exporter = ShaderExporter(self, nt_info._obj.name, nt_info._group_type)
+                exporter = ShaderExporter(self, nt_info)
             else:
                 self.report(
                     {'ERROR'}, 
@@ -264,6 +273,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 if base_tree not in self._node_trees:
                     self._node_trees[base_tree] = NodeTreeInfo()
                 node_info = self._node_trees[base_tree]
+                node_info._base_tree = base_tree
 
                 if self._mode == 'ADDON':
                     file = f"{clean_string(base_tree.name)}"
@@ -320,16 +330,12 @@ class NTP_OT_Export(bpy.types.Operator):
         node_tree (NodeTree): the base node tree to convert
         """
         group_node_type = ''
-        common_module = ""
         if isinstance(node_tree, bpy.types.CompositorNodeTree):
             group_node_type = 'CompositorNodeGroup'
-            common_module = "compositor_common"
         elif isinstance(node_tree, bpy.types.GeometryNodeTree):
             group_node_type = 'GeometryNodeGroup'
-            common_module = "geometry_common"
         elif isinstance(node_tree, bpy.types.ShaderNodeTree):
             group_node_type = 'ShaderNodeGroup'
-            common_module = "shader_common"
 
         node_info = self._node_trees[node_tree]
 
@@ -346,15 +352,6 @@ class NTP_OT_Export(bpy.types.Operator):
                     "Are all data blocks valid?"
                 )
                 return
-            """
-            if self._mode == 'ADDON':
-                if nt in self._node_trees and nt != node_tree:
-                    if self._node_trees[nt]._module != node_info._module:
-                        if not self._node_trees[nt]._is_base:
-                            # has multiple parents, needs referenced separately
-                            print(f"Found duplicate parent! Setting {nt.name} module to {common_module}")
-                            self._node_trees[nt]._module = common_module
-            """
             
             if (self._link_external_node_groups 
                 and nt.library is not None):
@@ -380,7 +377,7 @@ class NTP_OT_Export(bpy.types.Operator):
                     self._node_trees[nt] = NodeTreeInfo()
                     self._node_trees[nt]._obj = nt
                     self._node_trees[nt]._module = clean_string(node_tree.name)
-                print(f"Node tree not visited yet. Setting {nt.name} module to {self._node_trees[nt]._module}")
+                    self._node_trees[nt]._base_tree = nt
                 group_nodes = [node for node in nt.nodes
                                if node.bl_idname == group_node_type]
                 for group_node in group_nodes:

@@ -4,7 +4,7 @@ from ..node_group_gatherer import NodeGroupType
 from ..node_settings import NTPNodeSetting, ST
 from ..node_tree_exporter import NodeTreeExporter, INDEX
 from ..ntp_node_tree import NTP_NodeTree
-from ..ntp_operator import NTP_OT_Export
+from ..ntp_operator import NTP_OT_Export, NodeTreeInfo
 from ..utils import *
 
 SCENE = "scene"
@@ -18,15 +18,15 @@ class CompositorExporter(NodeTreeExporter):
     def __init__(
         self,
         ntp_operator: NTP_OT_Export,
-        obj_name: str,
-        group_type: NodeGroupType
+        node_tree_info: NodeTreeInfo
     ):
-        if not group_type.is_compositor():
+        if not node_tree_info._group_type.is_compositor():
             ntp_operator.report(
                 {'ERROR'},
-                f"Cannot initialize CompositorExporter with group type {group_type}"
+                f"Cannot initialize CompositorExporter with group type "
+                f"{node_tree_info._group_type}"
             )
-        NodeTreeExporter.__init__(self, ntp_operator, obj_name, group_type)
+        NodeTreeExporter.__init__(self, ntp_operator, node_tree_info)
         for name in COMP_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
     
@@ -35,7 +35,7 @@ class CompositorExporter(NodeTreeExporter):
 
         #TODO: wrap in more general unique name util function
         self._write(f"# Generate unique scene name", indent_level)
-        self._write(f"{BASE_NAME} = {str_to_py_str(self._obj_name)}",
+        self._write(f"{BASE_NAME} = {str_to_py_str(self._node_tree_info._obj.name)}",
                     indent_level)
         self._write(f"{END_NAME} = {BASE_NAME}", indent_level)
         self._write(f"if bpy.data.scenes.get({END_NAME}) is not None:", indent_level)
@@ -59,26 +59,8 @@ class CompositorExporter(NodeTreeExporter):
 
     # NodeTreeExporter interface
     def _create_obj(self):
-        if self._group_type == NodeGroupType.SCENE:
+        if self._node_tree_info._group_type == NodeGroupType.SCENE:
             self._create_scene()
-
-    # NodeTreeExporter interface
-    def _set_base_node_tree(self) -> None:
-        if self._group_type == NodeGroupType.SCENE:
-            scene = bpy.data.scenes[self._obj_name]
-            if bpy.app.version < (5, 0, 0):
-                self._base_node_tree = getattr(scene, "node_tree")
-            else:
-                self._base_node_tree = scene.compositing_node_group
-        else:
-            self._base_node_tree = bpy.data.node_groups[self._obj_name]
-
-        if self._base_node_tree is None:
-            #shouldn't happen
-            self._operator.report(
-                {'ERROR'},
-                ("NodeToPython: This doesn't seem to be a valid compositor "
-                 "node tree. Is Use Nodes selected?"))
 
     # NodeTreeExporter interface
     def _initialize_node_tree(
@@ -93,7 +75,7 @@ class CompositorExporter(NodeTreeExporter):
         self._write(f'"""Initialize {nt_name} node group"""')
 
         is_tree_base = (ntp_node_tree._node_tree == self._base_node_tree)
-        is_scene = self._group_type == NodeGroupType.SCENE
+        is_scene = self._node_tree_info._group_type == NodeGroupType.SCENE
         if is_tree_base and is_scene:
             self._write("if bpy.app.version < (5, 0, 0):")
             self._write(f"{ntp_node_tree._var} = {SCENE}.node_tree",
@@ -192,5 +174,3 @@ class CompositorExporter(NodeTreeExporter):
 
             color_balance_info = self._node_settings['CompositorNodeColorBalance']
             self._node_settings['CompositorNodeColorBalance'] = color_balance_info._replace(attributes_ = lst)
-
-

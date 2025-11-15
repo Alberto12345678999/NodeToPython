@@ -2,7 +2,7 @@ import bpy
 
 from ..node_group_gatherer import NodeGroupType
 from ..node_tree_exporter import NodeTreeExporter
-from ..ntp_operator import NTP_OT_Export
+from ..ntp_operator import NTP_OT_Export, NodeTreeInfo
 from ..utils import *
 
 from .node_tree import NTP_ShaderNodeTree, NTP_NodeTree
@@ -18,15 +18,15 @@ class ShaderExporter(NodeTreeExporter):
     def __init__(
         self, 
         ntp_operator: NTP_OT_Export,
-        obj_name: str, 
-        group_type: NodeGroupType
+        node_tree_info: NodeTreeInfo
     ):
-        if not group_type.is_shader():
+        if not node_tree_info._group_type.is_shader():
             ntp_operator.report(
                 {'ERROR'},
-                f"Cannot initialize ShaderExporter with group type {group_type}"
+                f"Cannot initialize ShaderExporter with group type "
+                f"{node_tree_info._group_type}"
             )
-        NodeTreeExporter.__init__(self, ntp_operator, obj_name, group_type)
+        NodeTreeExporter.__init__(self, ntp_operator, node_tree_info)
 
         for name in SHADER_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
@@ -48,7 +48,7 @@ class ShaderExporter(NodeTreeExporter):
         self._write(f'"""Initialize {nt_name} node group"""')
 
         is_base : bool = ntp_node_tree._node_tree == self._base_node_tree
-        is_obj : bool =  self._group_type != NodeGroupType.SHADER_NODE_GROUP
+        is_obj : bool =  self._node_tree_info._group_type.is_obj()
         if is_base and is_obj:
             self._write(f"{ntp_node_tree._var} = {self._obj_var}.node_tree\n")
             self._write(f"# Start with a clean node tree")
@@ -61,29 +61,6 @@ class ShaderExporter(NodeTreeExporter):
                          f"name = {str_to_py_str(nt_name)})"))
             self._write("", 0)
 
-    # NodeTreeExporter interface
-    def _set_base_node_tree(self) -> None:
-        match self._group_type:
-            case NodeGroupType.MATERIAL:
-                self._obj = bpy.data.materials[self._obj_name]
-            case NodeGroupType.LIGHT:
-                self._obj = bpy.data.lights[self._obj_name]
-            case NodeGroupType.LINE_STYLE:
-                self._obj = bpy.data.linestyles[self._obj_name]
-            case NodeGroupType.WORLD:
-                self._obj = bpy.data.worlds[self._obj_name]
-        
-        if self._group_type.is_group():
-            self._base_node_tree = bpy.data.node_groups[self._obj_name]
-        else:
-            self._base_node_tree = self._obj.node_tree
-
-        if self._base_node_tree is None:
-            self._operator.report(
-                {'ERROR'}, 
-                ("NodeToPython: Couldn't find base node tree")
-            )
-
     def _initialize_ntp_node_tree(
         self, 
         node_tree: bpy.types.NodeTree,
@@ -93,7 +70,7 @@ class ShaderExporter(NodeTreeExporter):
 
     # NodeTreeExporter interface    
     def _create_obj(self):
-        match self._group_type:
+        match self._node_tree_info._group_type:
             case NodeGroupType.MATERIAL:
                 self._create_material()
             case NodeGroupType.LIGHT:
@@ -111,7 +88,7 @@ class ShaderExporter(NodeTreeExporter):
         self._write(f'"""Initialize {nt_name} node group"""')
 
         is_tree_base : bool = ntp_node_tree._node_tree == self._base_node_tree
-        is_obj : bool =  self._group_type != NodeGroupType.SHADER_NODE_GROUP
+        is_obj : bool =  self._node_tree_info._group_type.is_obj()
         if is_tree_base and is_obj:
             self._write(f"{ntp_node_tree._var} = {self._obj_var}.node_tree\n")
             self._write(f"# Start with a clean node tree")
@@ -127,8 +104,11 @@ class ShaderExporter(NodeTreeExporter):
     def _create_material(self):
         indent_level = self._get_obj_creation_indent()
         
-        self._write(f"{self._obj_var} = bpy.data.materials.new("
-                    f"name = {str_to_py_str(self._obj_name)})", indent_level)
+        self._write(
+            f"{self._obj_var} = bpy.data.materials.new("
+            f"name = {str_to_py_str(self._node_tree_info._obj.name)})", 
+            indent_level
+        )
         self._write("if bpy.app.version < (5, 0, 0):", indent_level)
         self._write(f"{self._obj_var}.use_nodes = True\n\n", indent_level + 1)
 
@@ -137,16 +117,17 @@ class ShaderExporter(NodeTreeExporter):
     def _create_light(self):
         indent_level = self._get_obj_creation_indent()
         
+        light_type = getattr(self._node_tree_info._obj, "type")
         self._write(
             f"{self._obj_var} = bpy.data.lights.new("
-            f"name = {str_to_py_str(self._obj_name)}, "
-            f"type = {enum_to_py_str(self._obj.type)})",
+            f"name = {str_to_py_str(self._node_tree_info._obj.name)}, "
+            f"type = {enum_to_py_str(light_type)})",
             indent_level
         )
         self._write(f"{self._obj_var}.use_nodes = True\n\n", indent_level)
         self._write(
             f"{LIGHT_OBJ} = bpy.data.objects.new("
-            f"name = {str_to_py_str(self._obj.name)}, "
+            f"name = {str_to_py_str(self._node_tree_info._obj.name)}, "
             f"object_data={self._obj_var})",
             indent_level
         )
@@ -161,14 +142,22 @@ class ShaderExporter(NodeTreeExporter):
     def _create_line_style(self):
         indent_level = self._get_obj_creation_indent()
 
-        self._write(f"{self._obj_var} = bpy.data.linestyles.new("
-                    f"name = {str_to_py_str(self._obj_name)})", indent_level)
+        self._write(
+            f"{self._obj_var} = bpy.data.linestyles.new("
+            f"name = {str_to_py_str(self._node_tree_info._obj.name)})", 
+            indent_level
+        )
         self._write(f"{self._obj_var}.use_nodes = True\n", indent_level)
+        # TODO: other line style settings
 
     def _create_world(self):
         indent_level = self._get_obj_creation_indent()
         
-        self._write(f"{self._obj_var} = bpy.data.worlds.new("
-                    f"name = {str_to_py_str(self._obj_name)})", indent_level)
+        self._write(
+            f"{self._obj_var} = bpy.data.worlds.new("
+            f"name = {str_to_py_str(self._node_tree_info._obj.name)})", 
+            indent_level
+        )
         self._write("if bpy.app.version < (5, 0, 0):", indent_level)
         self._write(f"{self._obj_var}.use_nodes = True\n\n", indent_level + 1)
+        # TODO: other world settings

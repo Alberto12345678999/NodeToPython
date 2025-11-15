@@ -2,7 +2,7 @@ import bpy
 
 from ..node_group_gatherer import NodeGroupType
 from ..node_tree_exporter import NodeTreeExporter
-from ..ntp_operator import NTP_OT_Export
+from ..ntp_operator import NTP_OT_Export, NodeTreeInfo
 from ..utils import *
 
 from .node_tree import NTP_GeoNodeTree, NTP_NodeTree
@@ -24,15 +24,15 @@ class GeometryNodesExporter(NodeTreeExporter):
     def __init__(
         self,
         ntp_operator: NTP_OT_Export,
-        obj_name: str,
-        group_type: NodeGroupType
+        node_tree_info: NodeTreeInfo
     ):
-        if not group_type.is_geometry():
+        if not node_tree_info._group_type.is_geometry():
             ntp_operator.report(
                 {'ERROR'},
-                f"Cannot initialize GeometryNodesExporter with group type {group_type}"
+                f"Cannot initialize GeometryNodesExporter with group type "
+                f"{node_tree_info._group_type}"
             )
-        NodeTreeExporter.__init__(self, ntp_operator, obj_name, group_type)
+        NodeTreeExporter.__init__(self, ntp_operator, node_tree_info)
         for name in GEO_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
 
@@ -78,10 +78,6 @@ class GeometryNodesExporter(NodeTreeExporter):
     # NodeTreeExporter interface
     def _create_obj(self) -> None:
         pass
-
-    # NodeTreeExporter interface
-    def _set_base_node_tree(self) -> None:
-        self._base_node_tree = bpy.data.node_groups[self._obj_name]
 
     def _initialize_ntp_node_tree(
         self, 

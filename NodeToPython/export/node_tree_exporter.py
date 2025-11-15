@@ -9,7 +9,7 @@ from .node_group_gatherer import NodeGroupType
 
 from .node_settings import node_settings, ST
 from .ntp_node_tree import *
-from .ntp_operator import NTP_OT_Export
+from .ntp_operator import NTP_OT_Export, NodeTreeInfo
 from .utils import *
 
 BASE_DIR = "base_dir"
@@ -64,14 +64,13 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
     def __init__(
         self, 
         ntp_op: NTP_OT_Export,
-        obj_name: str,
-        group_type: NodeGroupType
+        node_tree_info: NodeTreeInfo
     ):
         # Operator executing the conversion
         self._operator : NTP_OT_Export = ntp_op
-
-        # Name of the object to be exported
-        self._obj_name : str = obj_name
+        
+        # Info for the node tree being exported
+        self._node_tree_info : NodeTreeInfo = node_tree_info
 
         # Dictionary to keep track of variables->usage count pairs
         self._used_vars: dict[str, int] = {}
@@ -79,18 +78,16 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._used_vars[name] = 0
 
         # Variable name to be used for object
-        self._obj_var : str = self._create_var(self._obj_name)
-
-        self._group_type = group_type
+        self._obj_var : str = self._create_var(self._node_tree_info._obj.name)
     
         # Class name for the operator, if it exists
         self._class_name : str = (
             f"{self._operator.name}_OT_"
-            f"{clean_string(self._obj_name, lower=False)}"
+            f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
         )
 
         # Node tree this exporter is responsible for exporting
-        self._base_node_tree : bpy.types.NodeTree = None
+        self._base_node_tree : bpy.types.NodeTree = self._node_tree_info._base_tree
 
         # Dictionary to keep track of node->variable name pairs
         self._node_vars: dict[bpy.types.Node, str] = {}
@@ -105,11 +102,9 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._node_settings = node_settings
 
     def export(self) -> None:
-        if self._operator._mode == 'ADDON':
-            self._init_operator(self._obj_var, self._obj_name)
+        if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
+            self._init_operator(self._obj_var, self._node_tree_info._obj.name)
             self._write("def execute(self, context: bpy.types.Context):", 1)
-        
-        self._set_base_node_tree()
             
         self._create_obj()
         
@@ -117,7 +112,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         self._process_node_tree(self._base_node_tree)
 
-        if self._operator._mode == 'ADDON':
+        if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._write("return {'FINISHED'}", self._operator._outer_indent_level)
 
         self._write("", self._operator._outer_indent_level)
