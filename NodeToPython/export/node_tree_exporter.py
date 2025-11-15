@@ -1441,40 +1441,46 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
                 # TODO: this could be cleaner
                 socket_var = f"{node_var}.inputs[{i}]"
 
+                default_val = getattr(input, "default_value")
                 # colors
                 if input.bl_idname == 'NodeSocketColor':
-                    default_val = vec4_to_py_str(input.default_value)
+                    default_val = vec4_to_py_str(default_val)
 
                 # vector types
                 elif "Vector" in input.bl_idname:
                     if "2D" in input.bl_idname:
-                        default_val = vec2_to_py_str(input.default_value)
+                        default_val = vec2_to_py_str(default_val)
                     elif "4D" in input.bl_idname:
-                        default_val = vec4_to_py_str(input.default_value)
+                        default_val = vec4_to_py_str(default_val)
                     else:
-                        default_val = vec3_to_py_str(input.default_value)
+                        default_val = vec3_to_py_str(default_val)
 
                 # rotation types
                 elif input.bl_idname == 'NodeSocketRotation':
-                    default_val = vec3_to_py_str(input.default_value)
+                    default_val = vec3_to_py_str(default_val)
 
                 # strings
-                elif input.bl_idname in {'NodeSocketString', 'NodeSocketStringFilePath'}:
-                    default_val = str_to_py_str(input.default_value)
+                elif input.bl_idname in {
+                    'NodeSocketString', 
+                    'NodeSocketStringFilePath'
+                }:
+                    default_val = str_to_py_str(default_val)
 
                 #menu
                 elif input.bl_idname == 'NodeSocketMenu':
-                    if input.default_value == '':
+                    if default_val == '':
                         continue
-                    default_val = enum_to_py_str(input.default_value)
+                    default_val = enum_to_py_str(default_val)
 
                 # images
                 elif input.bl_idname == 'NodeSocketImage':
-                    img = getattr(input, "default_value")
-                    if img is not None:
-                        if self._operator._addon_dir != "":  # write in a better way
-                            if self._save_image(img):
-                                self._load_image(img, f"{socket_var}.default_value")
+                    if default_val is not None:
+                        if self._operator._mode == 'ADDON':
+                            if self._save_image(default_val):
+                                self._load_image(
+                                    default_val, 
+                                    f"{socket_var}.default_value"
+                                )
                         else:
                             self._in_file_inputs(input, socket_var, "images")
                     default_val = None
@@ -1500,7 +1506,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
                     default_val = None
 
                 else:
-                    default_val = input.default_value
+                    default_val = getattr(input, "default_value")
 
                 if default_val is not None:
                     self._write(f"# {input.identifier}")
@@ -1529,7 +1535,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         node_var = self._node_vars[node]
 
-        dv = node.outputs[0].default_value
+        dv = getattr(node.outputs[0], "default_value")
         if node.bl_idname in {'ShaderNodeRGB', 'CompositorNodeRGB'}:
             dv = vec4_to_py_str(list(dv))
         if node.bl_idname in {'ShaderNodeNormal', 'CompositorNodeNormal'}:
