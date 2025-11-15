@@ -145,13 +145,8 @@ class NTP_OT_Export(bpy.types.Operator):
             if self._mode == 'ADDON':
                 self._file.close()
                 self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
-
-                if nt_info._is_base:
-                    self._outer_indent_level = 2
-                    self._inner_indent_level = 3
-                else:
-                    self._outer_indent_level = 0
-                    self._inner_indent_level = 1
+                self._outer_indent_level = 0
+                self._inner_indent_level = 1
 
             if nt_info._group_type.is_compositor():
                 exporter = CompositorExporter(self, nt_info)

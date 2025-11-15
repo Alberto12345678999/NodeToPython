@@ -102,15 +102,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._node_settings = node_settings
 
     def export(self) -> None:
+        self._import_essential_libs()
+        self._process_node_tree(self._base_node_tree)
+
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._init_operator(self._obj_var, self._node_tree_info._obj.name)
             self._write("def execute(self, context: bpy.types.Context):", 1)
             
         self._create_obj()
-        
-        self._import_essential_libs()
-
-        self._process_node_tree(self._base_node_tree)
 
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._write("return {'FINISHED'}", self._operator._outer_indent_level)
@@ -158,6 +157,8 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._write(f"bl_idname = {str_to_py_str(idname_str)}", 1)
         self._write(f"bl_label = {str_to_py_str(label)}", 1)
         self._write("bl_options = {\'REGISTER\', \'UNDO\'}\n", 1)
+        self._operator._outer_indent_level = 2
+        self._operator._inner_indent_level = 3
 
     @abc.abstractmethod
     def _create_obj(self):
@@ -1724,6 +1725,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         if create_name_var:
             node_tree_info._name_var = self._create_var(f"{nt_var}_name")
         self._write(
-            f"{node_tree_info._name_var} = {nt_var}.name",
+            f"{node_tree_info._name_var} = {nt_var}.name\n",
             indent_level
         )
