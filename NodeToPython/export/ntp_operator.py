@@ -130,6 +130,17 @@ class NTP_OT_Export(bpy.types.Operator):
         from .shader.exporter import ShaderExporter
 
         objs_to_export = self._get_objects_to_export(context)
+
+        # Create files
+        if self._mode == 'ADDON':
+            for nt_info in objs_to_export:
+                if nt_info._is_base:
+                    self._file.close()
+                    self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'w')
+                    self._create_imports()
+                    self._import_modules(nt_info)
+
+        # Export objects
         for nt_info in objs_to_export:
             if self._mode == 'ADDON':
                 self._file.close()
@@ -396,6 +407,17 @@ class NTP_OT_Export(bpy.types.Operator):
                 node_info._dependencies.update(self._node_trees[nt]._dependencies)
         dfs(node_tree)
 
+    def _import_modules(self, node_tree_info: NodeTreeInfo) -> None:
+        modules = set()
+        for dependency in node_tree_info._dependencies:
+            modules.add(self._node_trees[dependency]._module)
+        if node_tree_info._module in modules:
+            modules.remove(node_tree_info._module)
+
+        for module in modules:
+            self._write(f"import {module}", 0)
+        self._write("", 0)
+
     def _create_menu_func(self) -> None:
         """
         Creates the menu function
@@ -441,7 +463,7 @@ class NTP_OT_Export(bpy.types.Operator):
         def _create_manifest(self) -> None:
             manifest = open(f"{self._addon_dir}/blender_manifest.toml", "w")
             manifest.write("schema_version = \"1.0.0\"\n\n")
-            idname = self._name.lower() #TODO: this isn't safe
+            idname = clean_string(self._name)
             manifest.write(f"id = {str_to_py_str(idname)}\n")
 
             manifest.write(f"version = {version_to_manifest_str(self._version)}\n")

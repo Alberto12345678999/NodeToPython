@@ -160,10 +160,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._write("bl_options = {\'REGISTER\', \'UNDO\'}\n", 1)
 
     @abc.abstractmethod
-    def _set_base_node_tree(self) -> None:
-        pass
-
-    @abc.abstractmethod
     def _create_obj(self):
         pass
 
@@ -976,16 +972,19 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         elif node_tree in self._operator._node_trees:
             # TODO: probably should be done similar to lib trees
             node_tree_info = self._operator._node_trees[node_tree]
-            if self._operator._mode == 'ADDON':
-                self._write(f"import {node_tree_info._module}")
 
             if node_tree_info._name_var == "":
+                print("This shouldn't happen!")
                 self._call_node_tree_creation(
                     node_tree, self._operator._inner_indent_level
                 )
+            if self._operator._mode == 'ADDON':
+                name_var = f"{node_tree_info._module}.{node_tree_info._name_var}"
+            else:
+                name_var = node_tree_info._name_var
+
             self._write(
-                f"{node_var}.{attr_name} = "
-                f"bpy.data.node_groups[{node_tree_info._name_var}]"
+                f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"
             )
         else:
             self._operator.report(
