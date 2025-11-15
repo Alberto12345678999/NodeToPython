@@ -112,17 +112,15 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._set_base_node_tree()
             
         self._create_obj()
-
-        nt_info = self._operator._node_trees[self._base_node_tree]
-        trees_to_process : list[bpy.types.NodeTree] = nt_info._dependencies
-
+        
         self._import_essential_libs()
 
-        for node_tree in trees_to_process:
-            self._process_node_tree(node_tree)
+        self._process_node_tree(self._base_node_tree)
 
         if self._operator._mode == 'ADDON':
-            self._write("return {'FINISHED'}\n", self._operator._outer_indent_level)
+            self._write("return {'FINISHED'}", self._operator._outer_indent_level)
+
+        self._write("", self._operator._outer_indent_level)
 
     def _write(self, string: str, indent_level: int = -1):
         self._operator._write(string, indent_level)
@@ -253,14 +251,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._init_links(node_tree)
         
         self._write(f"return {nt_var}\n")
-        if self._operator._mode == 'SCRIPT':
-            self._write("", 0)
 
         #create node group
         node_tree_info = self._operator._node_trees[node_tree]
         node_tree_info._func = f"{nt_var}_node_group()"
-        self._write(f"{nt_var} = {node_tree_info._func}\n", 
-                    self._operator._outer_indent_level)
+        self._call_node_tree_creation(
+            node_tree, 
+            self._operator._outer_indent_level
+        )
     
     @abc.abstractmethod
     def _initialize_node_tree(
@@ -985,7 +983,15 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             node_tree_info = self._operator._node_trees[node_tree]
             if self._operator._mode == 'ADDON':
                 self._write(f"import {node_tree_info._module}")
-            self._write(f"{node_var}.{attr_name} = {node_tree_info._func}")
+
+            if node_tree_info._name_var == "":
+                self._call_node_tree_creation(
+                    node_tree, self._operator._inner_indent_level
+                )
+            self._write(
+                f"{node_var}.{attr_name} = "
+                f"bpy.data.node_groups[{node_tree_info._name_var}]"
+            )
         else:
             self._operator.report(
                 {'WARNING'}, 
@@ -1686,12 +1692,44 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
             self._write(f"# {in_node_var}.{input_socket.name} "
                         f"-> {out_node_var}.{output_socket.name}")
-            self._write(f"{nt_var}.links.new({in_node_var}"
-                        f".outputs[{input_idx}], "
-                        f"{out_node_var}.inputs[{output_idx}])")
+            
+            self._write(f"{nt_var}.links.new(")
+            self._write(
+                f"{nt_var}.nodes[{str_to_py_str(link.from_node.name)}]"
+                f".outputs[{input_idx}],",
+                self._operator._inner_indent_level + 1
+            )
+            self._write(
+                f"{nt_var}.nodes[{str_to_py_str(link.to_node.name)}]"
+                f".inputs[{output_idx}]",
+                self._operator._inner_indent_level + 1
+            )
+            self._write(")")
 
         for _func in self._write_after_links:
             _func()
         self._write_after_links = []
         self._write("", 0)
 
+    def _call_node_tree_creation(
+        self, 
+        node_tree: bpy.types.NodeTree,
+        indent_level: int,
+        create_name_var: bool = True
+    ) -> None:
+        node_tree_info = self._operator._node_trees[node_tree]
+        if node_tree in self._node_tree_vars:
+            nt_var = self._node_tree_vars[node_tree]
+        else:
+            nt_var = self._create_var(f"{node_tree.name}")
+
+        self._write(
+            f"{nt_var} = {node_tree_info._func}", 
+            indent_level
+        )
+        if create_name_var:
+            node_tree_info._name_var = self._create_var(f"{nt_var}_name")
+        self._write(
+            f"{node_tree_info._name_var} = {nt_var}.name",
+            indent_level
+        )

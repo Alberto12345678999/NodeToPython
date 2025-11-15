@@ -33,6 +33,7 @@ class NodeTreeInfo():
         self._lib_dependencies: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
         self._obj: NTPObject = None
         self._group_type: NodeGroupType = NodeGroupType.GEOMETRY_NODE_GROUP
+        self._name_var : str = ""
 
 class NTP_OT_Export(bpy.types.Operator):
     bl_idname = "ntp.export"
@@ -112,7 +113,7 @@ class NTP_OT_Export(bpy.types.Operator):
             if not self._setup_addon_directories(self.name):
                 return {'CANCELLED'}
             
-            self._file = open(f"{self._addon_dir}/__init__.py", "w")
+            self._file = open(f"{self._addon_dir}/__init__.py", 'w')
 
             self._create_bl_info(self.name)
             self._create_imports()
@@ -130,13 +131,18 @@ class NTP_OT_Export(bpy.types.Operator):
         from .geometry.exporter import GeometryNodesExporter
         from .shader.exporter import ShaderExporter
 
-        for group_type, obj in self._get_objects_to_export(context):
-            if group_type.is_compositor():
-                exporter = CompositorExporter(self, obj.name, group_type)
-            elif group_type.is_geometry():
-                exporter = GeometryNodesExporter(self, obj.name, group_type)
-            elif group_type.is_shader():
-                exporter = ShaderExporter(self, obj.name, group_type)
+        objs_to_export = self._get_objects_to_export(context)
+        for nt_info in objs_to_export:
+            print(f"Exporting {nt_info._obj.name}")
+            if self._mode == 'ADDON':
+                self._file.close()
+                self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
+            if nt_info._group_type.is_compositor():
+                exporter = CompositorExporter(self, nt_info._obj.name, nt_info._group_type)
+            elif nt_info._group_type.is_geometry():
+                exporter = GeometryNodesExporter(self, nt_info._obj.name, nt_info._group_type)
+            elif nt_info._group_type.is_shader():
+                exporter = ShaderExporter(self, nt_info._obj.name, nt_info._group_type)
             else:
                 self.report(
                     {'ERROR'}, 
@@ -146,7 +152,8 @@ class NTP_OT_Export(bpy.types.Operator):
             exporter.export()
 
         if self._mode == 'ADDON':
-            self._write("return {'FINISHED'}\n", self._outer_indent_level)
+            self._file.close()
+            self._file = open(f"{self._addon_dir}/__init__.py", 'a')
 
             self._create_menu_func()
             self._create_register_func()
@@ -274,7 +281,7 @@ class NTP_OT_Export(bpy.types.Operator):
 
     def _get_objects_to_export(
         self, context: bpy.types.Context
-    ) -> list[tuple[NodeGroupType, NTPObject]]:
+    ) -> list[NodeTreeInfo]:
         # TODO: this is really messy
         gatherer = NodeGroupGatherer()
         gatherer.gather_node_groups(context)
@@ -297,26 +304,14 @@ class NTP_OT_Export(bpy.types.Operator):
                 node_info._obj = obj
                 node_info._group_type = group_type
 
+        self._visited : set[bpy.types.NodeTree] = set()
+        self._export_order : list[NodeTreeInfo] = []
+
         for group_type, groups in gatherer.node_groups.items():
             for obj in groups:
                 base_tree = get_base_node_tree(obj, group_type)
                 self._topological_sort(base_tree)
-
-        visited : set[NodeTreeInfo] = set()
-        objects_to_export : list[tuple[NodeGroupType, NTPObject]] = []
-        def visit(nt_info: NodeTreeInfo):
-            if nt_info not in visited:
-                visited.add(nt_info)
-                for dependency in nt_info._base_tree_dependencies:
-                    visit(self._node_trees[dependency])
-                objects_to_export.append((nt_info._group_type, nt_info._obj))
-
-        for group_type, groups in gatherer.node_groups.items():
-            for obj in groups:
-                base_tree = get_base_node_tree(obj, group_type)
-                visit(self._node_trees[base_tree])
-
-        return objects_to_export
+        return self._export_order
 
     def _topological_sort(
         self, 
@@ -330,22 +325,22 @@ class NTP_OT_Export(bpy.types.Operator):
         node_tree (NodeTree): the base node tree to convert
         """
         group_node_type = ''
+        common_module = ""
         if isinstance(node_tree, bpy.types.CompositorNodeTree):
             group_node_type = 'CompositorNodeGroup'
+            common_module = "compositor_common"
         elif isinstance(node_tree, bpy.types.GeometryNodeTree):
             group_node_type = 'GeometryNodeGroup'
+            common_module = "geometry_common"
         elif isinstance(node_tree, bpy.types.ShaderNodeTree):
             group_node_type = 'ShaderNodeGroup'
+            common_module = "shader_common"
 
         node_info = self._node_trees[node_tree]
-
-        visited : set[bpy.types.NodeTree] = set()
-        result = node_info._dependencies
 
         def dfs(nt: bpy.types.NodeTree) -> None:
             """
             Helper function to perform depth-first search on a NodeTree
-
             Parameters:
             nt (NodeTree): current node tree in the dependency graph
             """
@@ -357,16 +352,12 @@ class NTP_OT_Export(bpy.types.Operator):
                 )
                 return
             
-            if nt in self._node_trees and nt != node_tree:
-                nt_info = self._node_trees[nt]
-                if nt_info._is_base:
-                    # don't repeat exported node groups
-                    node_info._base_tree_dependencies.append(nt)
-                    return
-                elif nt_info._module != node_info._module:
-                    # has multiple parents, needs referenced separately
-                    nt_info._module = "common"
-
+            if self._mode == 'ADDON':
+                if nt in self._node_trees and nt != node_tree:
+                    if self._node_trees[nt]._module != node_info._module:
+                        # has multiple parents, needs referenced separately
+                        self._node_trees[nt]._module = common_module
+            
             if (self._link_external_node_groups 
                 and nt.library is not None):
                 bpy_lib_path = bpy.path.abspath(nt.library.filepath)
@@ -376,7 +367,6 @@ class NTP_OT_Export(bpy.types.Operator):
                 )
                 datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
                 is_lib_essential = lib_path.is_relative_to(datafiles_path)
-
                 if is_lib_essential:
                     relative_path = lib_path.relative_to(datafiles_path)
                     if relative_path not in node_info._lib_dependencies:
@@ -386,10 +376,12 @@ class NTP_OT_Export(bpy.types.Operator):
                 else:
                     print(f"Library {lib_path} didn't seem essential, copying node groups")
             
-            if nt not in visited:
-                visited.add(nt)
+            if nt not in self._visited:
+                print(f"Visiting {nt.name}")
+                self._visited.add(nt)
                 if nt not in self._node_trees:
                     self._node_trees[nt] = NodeTreeInfo()
+                    self._node_trees[nt]._obj = nt
                 self._node_trees[nt]._module = node_tree.name # TODO
                 group_nodes = [node for node in nt.nodes
                                if node.bl_idname == group_node_type]
@@ -402,10 +394,10 @@ class NTP_OT_Export(bpy.types.Operator):
                             "Are all data blocks valid?"
                         )
                         continue
-                    if node_nt not in visited:
+                    if node_nt not in self._visited:
                         dfs(node_nt)
-                result.append(nt)
-        
+                self._export_order.append(self._node_trees[nt])
+                print(f"Adding {nt.name} to export order list")
         dfs(node_tree)
 
     def _create_menu_func(self) -> None:
