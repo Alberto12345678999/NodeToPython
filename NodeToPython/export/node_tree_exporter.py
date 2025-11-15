@@ -82,7 +82,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
     
         # Class name for the operator, if it exists
         self._class_name : str = (
-            f"{self._operator.name}_OT_"
+            f"{clean_string(self._operator._name, lower=False)}_OT_"
             f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
         )
 
@@ -154,7 +154,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._write("def __init__(self, *args, **kwargs):", 1)
         self._write("super().__init__(*args, **kwargs)\n", 2)
 
-        idname_str = f"{clean_string(self._operator.name)}.{idname}"
+        idname_str = f"{clean_string(self._operator._name)}.{idname}"
         self._write(f"bl_idname = {str_to_py_str(idname_str)}", 1)
         self._write(f"bl_label = {str_to_py_str(label)}", 1)
         self._write("bl_options = {\'REGISTER\', \'UNDO\'}\n", 1)
