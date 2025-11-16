@@ -985,15 +985,16 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             return
         
         node_var = self._node_vars[node]
-        if node_tree in self._node_tree_vars:
-            print("Shouldn't happen anymore?")
-            nt_var = self._node_tree_vars[node_tree]
-            self._write(f"{node_var}.{attr_name} = {nt_var}")
-        elif node_tree in self._operator._node_trees:
+        if node_tree in self._operator._node_trees:
             # TODO: probably should be done similar to lib trees
             node_tree_info = self._operator._node_trees[node_tree]
 
-            name_var = f"{NODE_TREE_NAMES}[{node_tree_info._func}]"
+            if node_tree_info._module == self._node_tree_info._module:
+                func = node_tree_info._func
+            else:
+                func = f"{node_tree_info._module}.{node_tree_info._func}"
+
+            name_var = f"{NODE_TREE_NAMES}[{func}]"
 
             self._write(
                 f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"

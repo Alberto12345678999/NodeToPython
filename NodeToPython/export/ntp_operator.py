@@ -408,9 +408,9 @@ class NTP_OT_Export(bpy.types.Operator):
                             "Are all data blocks valid?"
                         )
                         continue
-                    self._node_trees[nt]._dependencies.add(node_nt)
                     if node_nt not in self._visited:
                         dfs(node_nt)
+                    self._node_trees[nt]._dependencies.add(node_nt)
                 self._export_order.append(self._node_trees[nt])
                 node_info._dependencies.update(self._node_trees[nt]._dependencies)
         dfs(node_tree)
