@@ -61,6 +61,8 @@ class NTP_OT_Export(bpy.types.Operator):
         # Class named for the generated operator
         self._class_name: str = ""
 
+        self._name: str = ""
+
         # Indentation to use for the default write function
         self._outer_indent_level: int = 0
         self._inner_indent_level: int = 1

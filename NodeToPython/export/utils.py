@@ -23,6 +23,9 @@ def clean_string(string: str, lower: bool = True) -> str:
         string = string.lower()
     string = re.sub(r"[^a-zA-Z0-9_]", '_', string)
 
+    if string == "":
+        string = "ntp"
+        
     if keyword.iskeyword(string):
         string = "_" + string
     elif not (string[0].isalpha() or string[0] == '_'):
