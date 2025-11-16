@@ -81,10 +81,19 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._obj_var : str = self._create_var(self._node_tree_info._obj.name)
     
         # Class name for the operator, if it exists
-        self._class_name : str = (
-            f"{clean_string(self._operator._name, lower=False)}_OT_"
-            f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
-        )
+        if self._operator._mode == 'ADDON':
+            #TODO: probably a better spot for this
+            #if self._node_tree_info._module not in self._operator._modules:
+            #    self._operator._modules[self._node_tree_info._module] = []
+
+            if self._node_tree_info._is_base:
+                self._class_name : str = (
+                    f"{clean_string(self._operator._name, lower=False)}_OT_"
+                    f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
+                )
+                self._operator._modules[self._node_tree_info._module].append(
+                    self._class_name
+                )
 
         # Node tree this exporter is responsible for exporting
         self._base_node_tree : bpy.types.NodeTree = self._node_tree_info._base_tree
@@ -1722,6 +1731,9 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         indent_level: int,
         create_name_var: bool = True
     ) -> None:
+        # TODO: Blender not happy about this being called at registration time.
+        # Need to move inside operator execution functions.
+        # How to handle cases where multiple operators depend on a node group?
         node_tree_info = self._operator._node_trees[node_tree]
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]

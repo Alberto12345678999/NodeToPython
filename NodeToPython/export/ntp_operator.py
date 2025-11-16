@@ -15,10 +15,14 @@ from .utils import *
 
 IMAGE_DIR_NAME = "imgs"
 BASE_DIR = "base_dir"
+CLASS = "cls"
+CLASSES = "classes"
 
 RESERVED_NAMES = {
     IMAGE_DIR_NAME,
-    BASE_DIR
+    BASE_DIR,
+    CLASS,
+    CLASSES
 }
 
 MAX_BLENDER_VERSION = (5, 1, 0)
@@ -58,8 +62,8 @@ class NTP_OT_Export(bpy.types.Operator):
         # Path to the directory for the generated addon
         self._addon_dir: str = ""
 
-        # Class named for the generated operator
-        self._class_name: str = ""
+        # Modules with list operators to import and register
+        self._modules: dict[str, list[str]] = {}
 
         self._name: str = ""
 
@@ -116,10 +120,6 @@ class NTP_OT_Export(bpy.types.Operator):
 
             if not self._setup_addon_directories(self._name):
                 return {'CANCELLED'}
-            
-            self._file = open(f"{self._addon_dir}/__init__.py", 'w')
-
-            self._create_imports()
 
         elif self._mode == 'SCRIPT':
             self._file = StringIO("")
@@ -131,19 +131,24 @@ class NTP_OT_Export(bpy.types.Operator):
         from .geometry.exporter import GeometryNodesExporter
         from .shader.exporter import ShaderExporter
 
-        objs_to_export = self._get_objects_to_export(context)
+        self._calculate_export_order(context)
 
-        # Create files
         if self._mode == 'ADDON':
-            for nt_info in objs_to_export:
+            # Create files
+            for module in self._modules:
+                self._file.close()
+                self._file = open(f"{self._addon_dir}/{module}.py", 'w')
+                self._create_imports()
+
+            # Import dependencies
+            for nt_info in self._export_order:
                 if nt_info._is_base:
                     self._file.close()
-                    self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'w')
-                    self._create_imports()
+                    self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
                     self._import_modules(nt_info)
-
+            
         # Export objects
-        for nt_info in objs_to_export:
+        for nt_info in self._export_order:
             if self._mode == 'ADDON':
                 self._file.close()
                 self._file = open(f"{self._addon_dir}/{nt_info._module}.py", 'a')
@@ -166,11 +171,11 @@ class NTP_OT_Export(bpy.types.Operator):
 
         if self._mode == 'ADDON':
             self._file.close()
-            self._file = open(f"{self._addon_dir}/__init__.py", 'a')
-
+            self._file = open(f"{self._addon_dir}/__init__.py", 'w')
+            self._create_operator_module_imports()
+            self._create_imports()
             self._create_menu_func()
-            self._create_register_func()
-            self._create_unregister_func()
+            self._create_registration_funcs()
             self._create_main_func()
             self._create_license()
             if bpy.app.version >= (4, 2, 0):
@@ -266,10 +271,10 @@ class NTP_OT_Export(bpy.types.Operator):
         self._write("import mathutils", 0)
         self._write("import os", 0)
         self._write("\n", 0)
-
-    def _get_objects_to_export(
+    
+    def _calculate_export_order(
         self, context: bpy.types.Context
-    ) -> list[NodeTreeInfo]:
+    ) -> None:
         # TODO: this is really messy
         gatherer = NodeGroupGatherer()
         gatherer.gather_node_groups(context)
@@ -284,7 +289,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 node_info._base_tree = base_tree
 
                 if self._mode == 'ADDON':
-                    file = f"{clean_string(base_tree.name)}"
+                    file = f"{clean_string(obj.name)}"
                 else:
                     file = ""
                 node_info._module = file
@@ -316,12 +321,14 @@ class NTP_OT_Export(bpy.types.Operator):
             for obj in groups:
                 base_tree = get_base_node_tree(obj, group_type)
                 nt_info = self._node_trees[base_tree]
+                self._modules[nt_info._module] = []
                 for dependency in nt_info._dependencies:
                     dependency_info = self._node_trees[dependency]
                     base_dependents = dependency_info._base_dependents
                     base_dependents.add(base_tree)
                     if len(base_dependents) > 1:
                         dependency_info._module = common_module
+                    self._modules[dependency_info._module] = []
 
         return self._export_order
 
@@ -414,28 +421,58 @@ class NTP_OT_Export(bpy.types.Operator):
             self._write(f"import {module}", 0)
         self._write("", 0)
 
+    def _create_operator_module_imports(self) -> None:
+        visited_modules: set[str] = set()
+        module_order: list[str] = []
+        for nt_info in self._export_order:
+            if nt_info._module not in visited_modules:
+                visited_modules.add(nt_info._module)
+                module_order.append(nt_info._module)
+
+        self._write("if \"bpy\" in locals():", 0)
+        self._write("import importlib", 1)
+        for module in module_order:
+            self._write(f"importlib.reload({module})", 1)
+        self._write("else:", 0)
+        for module in module_order:
+            self._write(f"from . import {module}", 1)
+        self._write("", 0)
+
     def _create_menu_func(self) -> None:
         """
         Creates the menu function
         """
         self._write("def menu_func(self, context):", 0)
-        self._write(f"self.layout.operator({self._class_name}.bl_idname)\n", 1)
+        for module, classes in self._modules.items():
+            for cls in classes:
+                self._write(f"self.layout.operator({module}.{cls}.bl_idname)", 1)
+        self._write("")
 
-    def _create_register_func(self) -> None:
+    def _create_registration_funcs(self) -> None:
         """
         Creates the register function
         """
-        self._write("def register():", 0)
-        self._write(f"bpy.utils.register_class({self._class_name})", 1)
-        self._write(f"bpy.types.{self._menu_id}.append(menu_func)\n", 1)
+        # classes
+        self._write(f"{CLASSES} = [", 0)
+        for module, classes in self._modules.items():
+            for cls in classes:
+                self._write(f"{module}.{cls},", 1)
+        self._write("]", 0)
+        self._write("")
 
-    def _create_unregister_func(self) -> None:
-        """
-        Creates the unregister function
-        """
+        # register()
+        self._write("def register():", 0)
+        self._write(f"for {CLASS} in {CLASSES}:", 1)
+        self._write(f"bpy.utils.register_class({CLASS})", 2)
+        self._write(f"bpy.types.{self._menu_id}.append(menu_func)", 1)
+        self._write("")
+
+        # unregister()
         self._write("def unregister():", 0)
-        self._write(f"bpy.utils.unregister_class({self._class_name})", 1)
-        self._write(f"bpy.types.{self._menu_id}.remove(menu_func)\n", 1)
+        self._write(f"bpy.types.{self._menu_id}.remove(menu_func)", 1)
+        self._write(f"for {CLASS} in {CLASSES}:", 1)
+        self._write(f"bpy.utils.unregister_class({CLASS})", 2)
+        self._write("")
 
     def _create_main_func(self) -> None:
         """
