@@ -128,7 +128,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._write(f"{NODE_TREE_NAMES} : dict[typing.Callable, str] = {{}}", 2)
             self._write("", 0)
 
-            for dependency in self._node_tree_info._dependencies:
+            for dependency in self._node_tree_info._dependencies.keys():
                 self._call_node_tree_creation(dependency, 2)
             
         if self._node_tree_info._group_type.is_obj():

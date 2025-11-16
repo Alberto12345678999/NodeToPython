@@ -32,7 +32,8 @@ class NodeTreeInfo():
         self._func : str = ""
         self._module : str = ""
         self._is_base : bool = False
-        self._dependencies: set[bpy.types.NodeTree] = set()
+        # Dictionary acts as an ordered set
+        self._dependencies: dict[bpy.types.NodeTree, None] = {}
         self._base_dependents: set[bpy.types.NodeTree] = set()
         self._base_tree_dependencies: list[bpy.types.NodeTree] = []
         self._lib_dependencies: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
@@ -327,7 +328,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 base_tree = get_base_node_tree(obj, group_type)
                 nt_info = self._node_trees[base_tree]
                 self._modules[nt_info._module] = []
-                for dependency in nt_info._dependencies:
+                for dependency in nt_info._dependencies.keys():
                     dependency_info = self._node_trees[dependency]
                     base_dependents = dependency_info._base_dependents
                     base_dependents.add(base_tree)
@@ -410,14 +411,14 @@ class NTP_OT_Export(bpy.types.Operator):
                         continue
                     if node_nt not in self._visited:
                         dfs(node_nt)
-                    self._node_trees[nt]._dependencies.add(node_nt)
+                    self._node_trees[nt]._dependencies[node_nt] = None
                 self._export_order.append(self._node_trees[nt])
-                node_info._dependencies.update(self._node_trees[nt]._dependencies)
+                node_info._dependencies |= self._node_trees[nt]._dependencies
         dfs(node_tree)
 
     def _import_modules(self, node_tree_info: NodeTreeInfo) -> None:
         modules = set()
-        for dependency in node_tree_info._dependencies:
+        for dependency in node_tree_info._dependencies.keys():
             modules.add(self._node_trees[dependency]._module)
         if node_tree_info._module in modules:
             modules.remove(node_tree_info._module)
