@@ -287,7 +287,6 @@ class NTP_OT_Export(bpy.types.Operator):
                     file = f"{clean_string(base_tree.name)}"
                 else:
                     file = ""
-                print(f"Setting object {obj.name} module to {file}")
                 node_info._module = file
 
                 node_info._is_base = True

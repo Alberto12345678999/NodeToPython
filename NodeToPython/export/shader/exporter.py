@@ -31,36 +31,6 @@ class ShaderExporter(NodeTreeExporter):
         for name in SHADER_OP_RESERVED_NAMES:
             self._used_vars[name] = 0
 
-    def _initialize_shader_node_tree(self, 
-        ntp_node_tree: NTP_ShaderNodeTree, 
-        nt_name: str
-    ) -> None:
-        """
-        Initialize the shader node group
-
-        Parameters:
-        ntp_node_tree (NTP_ShaderNodeTree): node tree to be generated and 
-            variable to use
-        nt_name (str): name to use for the node tree
-        """
-        self._write(f"def {ntp_node_tree._var}_node_group():", 
-                    self._operator._outer_indent_level)
-        self._write(f'"""Initialize {nt_name} node group"""')
-
-        is_base : bool = ntp_node_tree._node_tree == self._base_node_tree
-        is_obj : bool =  self._node_tree_info._group_type.is_obj()
-        if is_base and is_obj:
-            self._write(f"{ntp_node_tree._var} = {self._obj_var}.node_tree\n")
-            self._write(f"# Start with a clean node tree")
-            self._write(f"for {NODE} in {ntp_node_tree._var}.nodes:")
-            self._write(f"{ntp_node_tree._var}.nodes.remove({NODE})", 
-                        self._operator._inner_indent_level + 1)
-        else:
-            self._write((f"{ntp_node_tree._var} = bpy.data.node_groups.new("
-                         f"type = \'ShaderNodeTree\', "
-                         f"name = {str_to_py_str(nt_name)})"))
-            self._write("", 0)
-
     def _initialize_ntp_node_tree(
         self, 
         node_tree: bpy.types.NodeTree,
