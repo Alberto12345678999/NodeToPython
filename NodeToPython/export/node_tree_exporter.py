@@ -84,10 +84,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
     
         # Class name for the operator, if it exists
         if self._operator._mode == 'ADDON':
-            #TODO: probably a better spot for this
-            #if self._node_tree_info._module not in self._operator._modules:
-            #    self._operator._modules[self._node_tree_info._module] = []
-
             if self._node_tree_info._is_base:
                 self._class_name : str = (
                     f"{clean_string(self._operator._name, lower=False)}_OT_"
@@ -999,12 +995,31 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._write(
                 f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"
             )
-        else:
-            self._operator.report(
-                {'WARNING'}, 
-                f"NodeToPython: Node tree dependency graph " 
-                f"wasn't properly initialized! Couldn't find "
-                f"node tree {node_tree.name}")
+        elif node_tree in self._node_tree_vars:
+            # Library nodes
+            # TODO: not the cleanest way of doing this....
+            libs = self._node_tree_info._lib_dependencies
+            bpy_lib_path = bpy.path.abspath(node_tree.library.filepath)
+            lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
+            bpy_datafiles_path = bpy.path.abspath(
+                bpy.utils.system_resource('DATAFILES')
+            )
+            datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
+            is_lib_essential = lib_path.is_relative_to(datafiles_path)
+            if is_lib_essential:
+                relative_path = lib_path.relative_to(datafiles_path)
+                if relative_path in libs:
+                    index = libs[relative_path].index(node_tree)
+                    # TODO: probably doesn't work for multiple libraries
+                    nt_var = f"{DATA_DST}.node_groups[{index}]"
+                    self._write(f"{node_var}.{attr_name} = {nt_var}")
+                    return
+                
+        self._operator.report(
+            {'ERROR'}, 
+            f"NodeToPython: Node tree dependency graph " 
+            f"wasn't properly initialized! Couldn't find "
+            f"node tree {node_tree.name}")
             
     def _save_image(self, img: bpy.types.Image) -> bool:
         """
@@ -1596,6 +1611,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             if zone_input_list:
                 self._write("", 0)
 
+    def _get_node_var(
+        self, 
+        node_tree: bpy.types.NodeTree, 
+        node: bpy.types.Node
+    ) -> str:
+        nt_var = self._node_tree_vars[node_tree]
+        return f"{nt_var}.nodes[{str_to_py_str(node.name)}]"
+    
     def _set_parents(self, node_tree: bpy.types.NodeTree) -> None:
         """
         Sets parents for all nodes, mostly used to put nodes in frames
@@ -1609,8 +1632,8 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
                 if not parent_comment:
                     self._write(f"# Set parents")
                     parent_comment = True
-                node_var = self._node_vars[node]
-                parent_var = self._node_vars[node.parent]
+                node_var = self._get_node_var(node_tree, node)
+                parent_var = self._get_node_var(node_tree, node.parent)
                 self._write(f"{node_var}.parent = {parent_var}")
         if parent_comment:
             self._write("", 0)
@@ -1625,7 +1648,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         self._write(f"# Set locations")
         for node in node_tree.nodes:
-            node_var = self._node_vars[node]
+            node_var = self._get_node_var(node_tree, node)
             self._write(f"{node_var}.location "
                         f"= ({node.location.x}, {node.location.y})")
         if node_tree.nodes:
@@ -1643,9 +1666,10 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         self._write(f"# Set dimensions")
         for node in node_tree.nodes:
-            node_var = self._node_vars[node]
-            self._write(f"{node_var}.width, {node_var}.height "
-                        f"= {node.width}, {node.height}")
+            node_var = self._get_node_var(node_tree, node)
+            self._write(f"{node_var}.width  = {node.width}")
+            self._write(f"{node_var}.height = {node.height}")
+            self._write("", 0)
         if node_tree.nodes:
             self._write("", 0)
 
@@ -1708,12 +1732,12 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             
             self._write(f"{nt_var}.links.new(")
             self._write(
-                f"{nt_var}.nodes[{str_to_py_str(link.from_node.name)}]"
+                f"{self._get_node_var(node_tree, link.from_node)}"
                 f".outputs[{input_idx}],",
                 self._operator._inner_indent_level + 1
             )
             self._write(
-                f"{nt_var}.nodes[{str_to_py_str(link.to_node.name)}]"
+                f"{self._get_node_var(node_tree, link.to_node)}"
                 f".inputs[{output_idx}]",
                 self._operator._inner_indent_level + 1
             )
