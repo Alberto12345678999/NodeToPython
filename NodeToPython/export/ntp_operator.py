@@ -17,12 +17,14 @@ IMAGE_DIR_NAME = "imgs"
 BASE_DIR = "base_dir"
 CLASS = "cls"
 CLASSES = "classes"
+NODE_TREE_NAMES = "node_tree_names"
 
 RESERVED_NAMES = {
     IMAGE_DIR_NAME,
     BASE_DIR,
     CLASS,
-    CLASSES
+    CLASSES,
+    NODE_TREE_NAMES
 }
 
 MAX_BLENDER_VERSION = (5, 1, 0)
@@ -182,12 +184,22 @@ class NTP_OT_Export(bpy.types.Operator):
             if bpy.app.version >= (4, 2, 0):
                 self._create_manifest()
         else:
+            # node tree names
+            self._write("if __name__ == \"__main__\":", 0)
+            self._write("# Maps node tree creation functions to the node tree ", 1)
+            self._write("# name, such that we don't recreate node trees unnecessarily", 1)
+            self._write(f"{NODE_TREE_NAMES} : dict[typing.Callable, str] = {{}}", 1)
+            self._write("", 0)
+            for nt_info in self._export_order:
+                self._call_node_tree_creation(nt_info._base_tree, 1)
             context.window_manager.clipboard = self._file.getvalue()
 
         self._file.close()
         
         if self._mode == 'ADDON':
             self._zip_addon()
+
+        self._report_finished()
 
         return {'FINISHED'}
     
@@ -291,14 +303,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 node_info._base_tree = base_tree
 
                 if self._mode == 'ADDON':
-                    file = f"{clean_string(obj.name)}"
-                else:
-                    file = ""
-                node_info._module = file
-                if file not in self._used_vars:
-                    self._used_vars[file] = 0
-                else:
-                    self._used_vars[file] += 1
+                    node_info._module = self._create_var(obj.name)
 
                 node_info._is_base = True
                 node_info._obj = obj
@@ -525,14 +530,53 @@ class NTP_OT_Export(bpy.types.Operator):
 
             manifest.close()
 
+    def _call_node_tree_creation(
+        self, 
+        node_tree: bpy.types.NodeTree,
+        indent_level: int
+    ) -> None:
+        node_tree_info = self._node_trees[node_tree]
+        nt_var = self._create_var(f"{node_tree.name}")
+
+        func = node_tree_info._func
+        self._write(
+            f"{nt_var} = {func}({NODE_TREE_NAMES})", 
+            indent_level
+        )
+        self._write(
+            f"{NODE_TREE_NAMES}[{func}] = {nt_var}.name\n",
+            indent_level
+        )
+
+    def _create_var(self, name: str) -> str:
+        """
+        Creates a unique variable name for a node tree
+
+        Parameters:
+        name (str): basic string we'd like to create the variable name out of
+
+        Returns:
+        clean_name (str): variable name for the node tree
+        """
+        if name == "":
+            name = "unnamed"
+        clean_name = clean_string(name)
+        var = clean_name
+        if var in self._used_vars:
+            self._used_vars[var] += 1
+            return f"{clean_name}_{self._used_vars[var]}"
+        else:
+            self._used_vars[var] = 0
+            return clean_name
+
     def _zip_addon(self) -> None:
         """
         Zips up the addon and removes the directory
         """
-        #shutil.make_archive(self._zip_dir, "zip", self._zip_dir)
-        #shutil.rmtree(self._zip_dir)
+        shutil.make_archive(self._zip_dir, "zip", self._zip_dir)
+        shutil.rmtree(self._zip_dir)
 
-    def _report_finished(self, object: str):
+    def _report_finished(self):
         """
         Alert user that NTP is finished
 
@@ -544,7 +588,7 @@ class NTP_OT_Export(bpy.types.Operator):
             location = "clipboard"
         else:
             location = self._dir_path
-        self.report({'INFO'}, f"NodeToPython: Saved {object} to {location}")
+        self.report({'INFO'}, f"NodeToPython: Saved {self._name} to {location}")
 
 classes = [
     NTP_OT_Export

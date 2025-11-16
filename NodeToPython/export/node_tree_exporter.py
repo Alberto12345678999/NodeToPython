@@ -10,7 +10,7 @@ from .node_group_gatherer import NodeGroupType
 
 from .node_settings import node_settings, ST
 from .ntp_node_tree import *
-from .ntp_operator import NTP_OT_Export, NodeTreeInfo
+from .ntp_operator import NTP_OT_Export, NodeTreeInfo, NODE_TREE_NAMES
 from .utils import *
 
 BASE_DIR = "base_dir"
@@ -24,7 +24,6 @@ ITEM = "item"
 LIB_RELPATH = "lib_relpath"
 LIB_PATH = "lib_path"
 NODE = "node"
-NODE_TREE_NAMES = "node_tree_names"
 
 RESERVED_NAMES = {
     BASE_DIR,
@@ -989,7 +988,8 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             # TODO: probably should be done similar to lib trees
             node_tree_info = self._operator._node_trees[node_tree]
 
-            if node_tree_info._module == self._node_tree_info._module:
+            if (self._operator._mode == 'SCRIPT' or 
+                node_tree_info._module == self._node_tree_info._module):
                 func = node_tree_info._func
             else:
                 func = f"{node_tree_info._module}.{node_tree_info._func}"
@@ -1730,9 +1730,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         indent_level: int
     ) -> None:
         print(f"{self._base_node_tree.name} creating node tree creation for {node_tree.name}")
-        # TODO: Blender not happy about this being called at registration time.
-        # Need to move inside operator execution functions.
-        # How to handle cases where multiple operators depend on a node group?
+
         node_tree_info = self._operator._node_trees[node_tree]
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]
