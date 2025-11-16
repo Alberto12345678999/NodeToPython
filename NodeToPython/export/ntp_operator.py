@@ -355,12 +355,16 @@ class NTP_OT_Export(bpy.types.Operator):
         node_tree (NodeTree): the base node tree to convert
         """
         group_node_type = ''
+        group_type = NodeGroupType.GEOMETRY_NODE_GROUP
         if isinstance(node_tree, bpy.types.CompositorNodeTree):
             group_node_type = 'CompositorNodeGroup'
+            group_type = NodeGroupType.COMPOSITOR_NODE_GROUP
         elif isinstance(node_tree, bpy.types.GeometryNodeTree):
             group_node_type = 'GeometryNodeGroup'
+            group_type = NodeGroupType.GEOMETRY_NODE_GROUP
         elif isinstance(node_tree, bpy.types.ShaderNodeTree):
             group_node_type = 'ShaderNodeGroup'
+            group_node_type = NodeGroupType.SHADER_NODE_GROUP
 
         node_info = self._node_trees[node_tree]
 
@@ -403,6 +407,7 @@ class NTP_OT_Export(bpy.types.Operator):
                     self._node_trees[nt]._obj = nt
                     self._node_trees[nt]._module = clean_string(node_tree.name)
                     self._node_trees[nt]._base_tree = nt
+                    self._node_trees[nt]._group_type = group_type
                 group_nodes = [node for node in nt.nodes
                                if node.bl_idname == group_node_type]
                 for group_node in group_nodes:
@@ -416,7 +421,10 @@ class NTP_OT_Export(bpy.types.Operator):
                         continue
                     if node_nt not in self._visited:
                         dfs(node_nt)
-                    self._node_trees[nt]._dependencies[node_nt] = None
+                    if (node_nt.library is None or 
+                        (not self._link_external_node_groups)
+                    ):
+                        self._node_trees[nt]._dependencies[node_nt] = None
                 self._export_order.append(self._node_trees[nt])
                 node_info._dependencies |= self._node_trees[nt]._dependencies
         dfs(node_tree)
