@@ -20,7 +20,7 @@ class NodeGroupType(Enum):
         }
 
     def is_obj(self) -> bool:
-        return not self.is_group
+        return (not self.is_group())
     
     def is_compositor(self) -> bool:
         return self in {
