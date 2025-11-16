@@ -270,6 +270,7 @@ class NTP_OT_Export(bpy.types.Operator):
         self._write("import bpy", 0)
         self._write("import mathutils", 0)
         self._write("import os", 0)
+        self._write("import typing", 0)
         self._write("\n", 0)
     
     def _calculate_export_order(
@@ -293,6 +294,10 @@ class NTP_OT_Export(bpy.types.Operator):
                 else:
                     file = ""
                 node_info._module = file
+                if file not in self._used_vars:
+                    self._used_vars[file] = 0
+                else:
+                    self._used_vars[file] += 1
 
                 node_info._is_base = True
                 node_info._obj = obj
@@ -328,9 +333,9 @@ class NTP_OT_Export(bpy.types.Operator):
                     base_dependents.add(base_tree)
                     if len(base_dependents) > 1:
                         dependency_info._module = common_module
+                        if common_module not in self._used_vars:
+                            self._used_vars[common_module] = 0
                     self._modules[dependency_info._module] = []
-
-        return self._export_order
 
     def _topological_sort(
         self, 
@@ -418,7 +423,7 @@ class NTP_OT_Export(bpy.types.Operator):
             modules.remove(node_tree_info._module)
 
         for module in modules:
-            self._write(f"import {module}", 0)
+            self._write(f"from . import {module}", 0)
         self._write("", 0)
 
     def _create_operator_module_imports(self) -> None:
@@ -523,8 +528,8 @@ class NTP_OT_Export(bpy.types.Operator):
         """
         Zips up the addon and removes the directory
         """
-        shutil.make_archive(self._zip_dir, "zip", self._zip_dir)
-        shutil.rmtree(self._zip_dir)
+        #shutil.make_archive(self._zip_dir, "zip", self._zip_dir)
+        #shutil.rmtree(self._zip_dir)
 
     def _report_finished(self, object: str):
         """

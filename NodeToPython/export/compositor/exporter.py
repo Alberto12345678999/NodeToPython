@@ -2,7 +2,7 @@ import bpy
 
 from ..node_group_gatherer import NodeGroupType
 from ..node_settings import NTPNodeSetting, ST
-from ..node_tree_exporter import NodeTreeExporter, INDEX
+from ..node_tree_exporter import NodeTreeExporter, INDEX, NODE_TREE_NAMES
 from ..ntp_node_tree import NTP_NodeTree
 from ..ntp_operator import NTP_OT_Export, NodeTreeInfo
 from ..utils import *
@@ -69,8 +69,10 @@ class CompositorExporter(NodeTreeExporter):
     ) -> None:
         nt_name = ntp_node_tree._node_tree.name
 
+        self._node_tree_info._func = f"{ntp_node_tree._var}_node_group"
         #initialize node group
-        self._write(f"def {ntp_node_tree._var}_node_group():", 
+        self._write(f"def {self._node_tree_info._func}("
+                    f"{NODE_TREE_NAMES}: dict[typing.Callable, str]):", 
                     self._operator._outer_indent_level)
         self._write(f'"""Initialize {nt_name} node group"""')
 

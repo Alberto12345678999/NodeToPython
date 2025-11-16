@@ -1,4 +1,5 @@
 import abc
+import copy
 import pathlib
 import os
 from typing import Callable
@@ -23,6 +24,7 @@ ITEM = "item"
 LIB_RELPATH = "lib_relpath"
 LIB_PATH = "lib_path"
 NODE = "node"
+NODE_TREE_NAMES = "node_tree_names"
 
 RESERVED_NAMES = {
     BASE_DIR,
@@ -34,7 +36,8 @@ RESERVED_NAMES = {
     INDEX,
     ITEM,
     LIB_RELPATH,
-    LIB_PATH
+    LIB_PATH,
+    NODE_TREE_NAMES
 }
 
 NO_DEFAULT_SOCKETS = {
@@ -73,7 +76,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._node_tree_info : NodeTreeInfo = node_tree_info
 
         # Dictionary to keep track of variables->usage count pairs
-        self._used_vars: dict[str, int] = {}
+        self._used_vars: dict[str, int] = copy.copy(self._operator._used_vars)
         for name in RESERVED_NAMES:
             self._used_vars[name] = 0
 
@@ -118,12 +121,22 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._init_operator(self._obj_var, self._node_tree_info._obj.name)
             self._write("def execute(self, context: bpy.types.Context):", 1)
+
+            # node tree names
+            self._write("# Maps node tree creation functions to the node tree ", 2)
+            self._write("# name, such that we don't recreate node trees unnecessarily", 2)
+            self._write(f"{NODE_TREE_NAMES} : dict[typing.Callable, str] = {{}}", 2)
+            self._write("", 0)
+
+            for dependency in self._node_tree_info._dependencies:
+                self._call_node_tree_creation(dependency, 2)
             
         if self._node_tree_info._group_type.is_obj():
             self._create_obj()
             self._process_node_tree(self._base_node_tree)
 
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
+            self._call_node_tree_creation(self._base_node_tree, 2)
             self._write("return {'FINISHED'}", self._operator._outer_indent_level)
 
         self._write("", self._operator._outer_indent_level)
@@ -256,14 +269,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._init_links(node_tree)
         
         self._write(f"return {nt_var}\n")
-
-        #create node group
-        node_tree_info = self._operator._node_trees[node_tree]
-        node_tree_info._func = f"{nt_var}_node_group()"
-        self._call_node_tree_creation(
-            node_tree, 
-            self._operator._outer_indent_level
-        )
     
     @abc.abstractmethod
     def _initialize_node_tree(
@@ -981,21 +986,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         
         node_var = self._node_vars[node]
         if node_tree in self._node_tree_vars:
+            print("Shouldn't happen anymore?")
             nt_var = self._node_tree_vars[node_tree]
             self._write(f"{node_var}.{attr_name} = {nt_var}")
         elif node_tree in self._operator._node_trees:
             # TODO: probably should be done similar to lib trees
             node_tree_info = self._operator._node_trees[node_tree]
 
-            if node_tree_info._name_var == "":
-                print("This shouldn't happen!")
-                self._call_node_tree_creation(
-                    node_tree, self._operator._inner_indent_level
-                )
-            if self._operator._mode == 'ADDON':
-                name_var = f"{node_tree_info._module}.{node_tree_info._name_var}"
-            else:
-                name_var = node_tree_info._name_var
+            name_var = f"{NODE_TREE_NAMES}[{node_tree_info._func}]"
 
             self._write(
                 f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"
@@ -1720,17 +1718,17 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             )
             self._write(")")
 
-        for _func in self._write_after_links:
-            _func()
+        for func in self._write_after_links:
+            func()
         self._write_after_links = []
         self._write("", 0)
 
     def _call_node_tree_creation(
         self, 
         node_tree: bpy.types.NodeTree,
-        indent_level: int,
-        create_name_var: bool = True
+        indent_level: int
     ) -> None:
+        print(f"{self._base_node_tree.name} creating node tree creation for {node_tree.name}")
         # TODO: Blender not happy about this being called at registration time.
         # Need to move inside operator execution functions.
         # How to handle cases where multiple operators depend on a node group?
@@ -1740,13 +1738,15 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         else:
             nt_var = self._create_var(f"{node_tree.name}")
 
+        if node_tree_info._module != self._node_tree_info._module:
+            func = f"{node_tree_info._module}.{node_tree_info._func}"
+        else:
+            func = node_tree_info._func
         self._write(
-            f"{nt_var} = {node_tree_info._func}", 
+            f"{nt_var} = {func}({NODE_TREE_NAMES})", 
             indent_level
         )
-        if create_name_var:
-            node_tree_info._name_var = self._create_var(f"{nt_var}_name")
         self._write(
-            f"{node_tree_info._name_var} = {nt_var}.name\n",
+            f"{NODE_TREE_NAMES}[{func}] = {nt_var}.name\n",
             indent_level
         )
