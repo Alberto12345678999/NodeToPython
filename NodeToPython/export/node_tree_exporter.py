@@ -24,6 +24,7 @@ ITEM = "item"
 LIB_RELPATH = "lib_relpath"
 LIB_PATH = "lib_path"
 NODE = "node"
+NODE_GROUP = "node_group"
 
 RESERVED_NAMES = {
     BASE_DIR,
@@ -36,7 +37,8 @@ RESERVED_NAMES = {
     ITEM,
     LIB_RELPATH,
     LIB_PATH,
-    NODE_TREE_NAMES
+    NODE_TREE_NAMES,
+    NODE_GROUP
 }
 
 NO_DEFAULT_SOCKETS = {
@@ -109,7 +111,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._node_settings = node_settings
 
     def export(self) -> None:
-        self._import_essential_libs()
         if self._node_tree_info._group_type.is_group():
             self._process_node_tree(self._base_node_tree)
 
@@ -233,7 +234,9 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         Parameters:
         node_tree (NodeTree): node tree to be recreated
-        """  
+        """
+        self._import_essential_libs()
+
         nt_var = self._create_var(node_tree.name)
         self._node_tree_vars[node_tree] = nt_var
 
@@ -995,25 +998,21 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._write(
                 f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"
             )
+            return
         elif node_tree in self._node_tree_vars:
             # Library nodes
-            # TODO: not the cleanest way of doing this....
-            libs = self._node_tree_info._lib_dependencies
-            bpy_lib_path = bpy.path.abspath(node_tree.library.filepath)
-            lib_path = pathlib.Path(os.path.realpath(bpy_lib_path))
-            bpy_datafiles_path = bpy.path.abspath(
-                bpy.utils.system_resource('DATAFILES')
-            )
-            datafiles_path = pathlib.Path(os.path.realpath(bpy_datafiles_path))
-            is_lib_essential = lib_path.is_relative_to(datafiles_path)
-            if is_lib_essential:
-                relative_path = lib_path.relative_to(datafiles_path)
-                if relative_path in libs:
-                    index = libs[relative_path].index(node_tree)
-                    # TODO: probably doesn't work for multiple libraries
-                    nt_var = f"{DATA_DST}.node_groups[{index}]"
-                    self._write(f"{node_var}.{attr_name} = {nt_var}")
-                    return
+
+            # Keys don't seem to be unique for linked groups, 
+            # need to do this nonsense
+            self._write(f"# Finding linked library node group")
+            self._write(f"for {NODE_GROUP} in bpy.data.node_groups:")
+            self._write(f"if {NODE_GROUP}.name == {str_to_py_str(node_tree.name)}:",
+                        self._operator._inner_indent_level + 1)
+            self._write(f"if {NODE_GROUP}.bl_idname == {enum_to_py_str(node_tree.bl_idname)}:",
+                        self._operator._inner_indent_level + 2)
+            self._write(f"{node_var}.{attr_name} = {NODE_GROUP}",
+                        self._operator._inner_indent_level + 3)
+            return
                 
         self._operator.report(
             {'ERROR'}, 
