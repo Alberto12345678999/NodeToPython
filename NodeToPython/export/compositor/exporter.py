@@ -33,9 +33,11 @@ class CompositorExporter(NodeTreeExporter):
     def _create_scene(self):
         indent_level = self._get_obj_creation_indent()
 
+        scene: bpy.types.Scene = self._node_tree_info._obj
+
         #TODO: wrap in more general unique name util function
         self._write(f"# Generate unique scene name", indent_level)
-        self._write(f"{BASE_NAME} = {str_to_py_str(self._node_tree_info._obj.name)}",
+        self._write(f"{BASE_NAME} = {str_to_py_str(scene.name)}",
                     indent_level)
         self._write(f"{END_NAME} = {BASE_NAME}", indent_level)
         self._write(f"if bpy.data.scenes.get({END_NAME}) is not None:", indent_level)
@@ -55,6 +57,46 @@ class CompositorExporter(NodeTreeExporter):
         self._write(f"{SCENE}.name = {END_NAME}", indent_level)
         self._write(f"{SCENE}.use_fake_user = True", indent_level)
         self._write(f"bpy.context.window.scene = {SCENE}", indent_level)
+
+        regular_attrs = [
+            "audio_doppler_factor",
+            "audio_doppler_speed",
+            "audio_volume",
+            "use_audio",
+            "use_audio_scrub",
+            "use_gravity"
+        ]
+        enum_attrs = [
+            "audio_distance_model",
+            "sync_mode"
+        ]
+        vec3_attrs = [
+            "gravity"
+        ]
+        str_attrs = [
+            "use_stamp_note"
+        ]
+
+        for attr in regular_attrs:
+            self._write(
+                f"{self._obj_var}.{attr} = {getattr(scene, attr)}",
+                indent_level
+            )
+        for attr in enum_attrs:
+            self._write(
+                f"{self._obj_var}.{attr} = {enum_to_py_str(getattr(scene, attr))}",
+                indent_level
+            )
+        for attr in vec3_attrs:
+            self._write(
+                f"{self._obj_var}.{attr} = {vec3_to_py_str(getattr(scene, attr))}",
+                indent_level
+            )
+        for attr in str_attrs:
+            self._write(
+                f"{self._obj_var}.{attr} = {str_to_py_str(getattr(scene, attr))}",
+                indent_level
+            )
         self._write("", 0)
 
     # NodeTreeExporter interface
