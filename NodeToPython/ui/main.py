@@ -1,6 +1,8 @@
 import bpy
 
-from ..export_operator import NTP_OT_Export, NodeGroupGatherer
+from ..export.node_group_gatherer import NodeGroupGatherer
+from ..export.ntp_operator import NTP_OT_Export
+from ..export.ntp_options import NTP_PG_Options
 
 import pathlib
 
@@ -27,15 +29,15 @@ class NTP_PT_Main(bpy.types.Panel):
         col = layout.column(align=True)
         row = col.row()
 
-        ntp_options = context.scene.ntp_options
+        ntp_options : NTP_PG_Options = getattr(context.scene, "ntp_options")
         location = ""
         export_icon = ''
         if ntp_options.mode == 'SCRIPT':
             location = "clipboard"
             export_icon = 'COPYDOWN'
-        elif ntp_options.mode == 'ADDON':
-            location = pathlib.PurePath(ntp_options.dir_path).name
-            export_icon = 'CONSOLE'
+        else: # mode == 'ADDON'
+            location = f"{pathlib.PurePath(ntp_options.dir_path).name}/"
+            export_icon = 'FILE_FOLDER'
 
         gatherer = NodeGroupGatherer()
         gatherer.gather_node_groups(context)
@@ -48,8 +50,12 @@ class NTP_PT_Main(bpy.types.Panel):
 
         export_text = f"Export {node_group} to {location}"
 
+        if location == "":
+            export_text = "Add a save location to get started!"
+            export_icon = 'WARNING_LARGE'
+
         if num_node_groups == 0:
-            export_text = f"0 node groups selected!"
+            export_text = "Add a node group to get started!"
             export_icon = 'WARNING_LARGE'
 
         export_button = row.operator(
@@ -57,7 +63,7 @@ class NTP_PT_Main(bpy.types.Panel):
             text=export_text, 
             icon=export_icon
         )
-        row.enabled = num_node_groups > 0
+        row.enabled = num_node_groups > 0 and location != ""
 
 classes: list[type] = [
     NTP_PT_Main

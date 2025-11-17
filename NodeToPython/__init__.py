@@ -10,23 +10,15 @@ bl_info = {
 
 if "bpy" in locals():
     import importlib
-    importlib.reload(export_operator)
-    importlib.reload(ntp_options)
+    importlib.reload(export)
     importlib.reload(ui)
-    importlib.reload(compositor)
-    importlib.reload(geometry)
-    importlib.reload(shader)
 else:
-    from . import export_operator
-    from . import ntp_options
+    from . import export
     from . import ui
-    from . import compositor
-    from . import geometry
-    from . import shader
 import bpy
 
-modules = [export_operator, ntp_options]
-for parent_module in [ui, compositor, geometry, shader]:
+modules = []
+for parent_module in [export, ui]:
     if hasattr(parent_module, "modules"):
         modules += parent_module.modules
     else:

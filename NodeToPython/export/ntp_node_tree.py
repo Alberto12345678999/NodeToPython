@@ -1,13 +1,14 @@
-from bpy.types import NodeTree
 import bpy
 
 class NTP_NodeTree:
-    def __init__(self, node_tree: NodeTree, var: str):
+    def __init__(self, node_tree: bpy.types.NodeTree, var: str):
         # Blender node tree object being copied
-        self.node_tree: NodeTree = node_tree
+        self._node_tree: bpy.types.NodeTree = node_tree
 
         # The variable named for the regenerated node tree
-        self.var: str = var
+        self._var: str = var
+
+        self._zone_inputs: dict[str, list[bpy.types.Node]] = {}
 
         if bpy.app.version < (4, 0, 0):
             # Keep track of if we need to set the default values for the node
