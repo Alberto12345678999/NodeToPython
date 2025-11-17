@@ -76,9 +76,7 @@ class CompositorExporter(NodeTreeExporter):
                     self._operator._outer_indent_level)
         self._write(f'"""Initialize {nt_name} node group"""')
 
-        is_tree_base = (ntp_node_tree._node_tree == self._base_node_tree)
-        is_scene = self._node_tree_info._group_type == NodeGroupType.SCENE
-        if is_tree_base and is_scene:
+        if self._node_tree_info._group_type == NodeGroupType.SCENE:
             self._write("if bpy.app.version < (5, 0, 0):")
             self._write(f"{ntp_node_tree._var} = {SCENE}.node_tree",
                         self._operator._inner_indent_level + 1)

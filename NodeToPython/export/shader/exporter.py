@@ -60,9 +60,7 @@ class ShaderExporter(NodeTreeExporter):
                     self._operator._outer_indent_level)
         self._write(f'"""Initialize {nt_name} node group"""')
 
-        is_tree_base : bool = ntp_node_tree._node_tree == self._base_node_tree
-        is_obj : bool =  self._node_tree_info._group_type.is_obj()
-        if is_tree_base and is_obj:
+        if self._node_tree_info._group_type.is_obj():
             self._write(f"{ntp_node_tree._var} = {self._obj_var}.node_tree\n")
             self._write(f"# Start with a clean node tree")
             self._write(f"for {NODE} in {ntp_node_tree._var}.nodes:")

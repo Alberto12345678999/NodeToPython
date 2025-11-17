@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import datetime
 from io import StringIO
 import os
@@ -37,12 +36,10 @@ class NodeTreeInfo():
         # Dictionary acts as an ordered set
         self._dependencies: dict[bpy.types.NodeTree, None] = {}
         self._base_dependents: set[bpy.types.NodeTree] = set()
-        self._base_tree_dependencies: list[bpy.types.NodeTree] = []
         self._lib_dependencies: dict[pathlib.Path, list[bpy.types.NodeTree]] = {}
         self._obj: NTPObject = None
         self._base_tree : bpy.types.NodeTree = None
         self._group_type: NodeGroupType = NodeGroupType.GEOMETRY_NODE_GROUP
-        self._name_var : str = ""
 
 class NTP_OT_Export(bpy.types.Operator):
     bl_idname = "ntp.export"

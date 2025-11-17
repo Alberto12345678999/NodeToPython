@@ -1,12 +1,9 @@
 import abc
 import copy
-import pathlib
 import os
 from typing import Callable
 
 import bpy
-
-from .node_group_gatherer import NodeGroupType
 
 from .node_settings import node_settings, ST
 from .ntp_node_tree import *
@@ -85,18 +82,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._obj_var : str = self._create_var(self._node_tree_info._obj.name)
     
         # Class name for the operator, if it exists
-        if self._operator._mode == 'ADDON':
-            if self._node_tree_info._is_base:
-                self._class_name : str = (
-                    f"{clean_string(self._operator._name, lower=False)}_OT_"
-                    f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
-                )
-                self._operator._modules[self._node_tree_info._module].append(
-                    self._class_name
-                )
-
-        # Node tree this exporter is responsible for exporting
-        self._base_node_tree : bpy.types.NodeTree = self._node_tree_info._base_tree
+        if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
+            self._class_name : str = (
+                f"{clean_string(self._operator._name, lower=False)}_OT_"
+                f"{clean_string(self._node_tree_info._obj.name, lower=False)}"
+            )
+            self._operator._modules[self._node_tree_info._module].append(
+                self._class_name
+            )
 
         # Dictionary to keep track of node->variable name pairs
         self._node_vars: dict[bpy.types.Node, str] = {}
@@ -116,7 +109,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._import_essential_libs()
 
         if self._node_tree_info._group_type.is_group():
-            self._process_node_tree(self._base_node_tree)
+            self._process_node_tree()
 
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._init_operator(self._obj_var, self._node_tree_info._obj.name)
@@ -135,10 +128,10 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             
         if self._node_tree_info._group_type.is_obj():
             self._create_obj()
-            self._process_node_tree(self._base_node_tree)
+            self._process_node_tree()
 
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
-            self._call_node_tree_creation(self._base_node_tree, 2)
+            self._call_node_tree_creation(self._node_tree_info._base_tree, 2)
             self._write("return {'FINISHED'}", self._operator._outer_indent_level)
 
         self._write("", self._operator._outer_indent_level)
@@ -201,13 +194,12 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         return indent_level
 
     def _import_essential_libs(self) -> None:
-        nt_info = self._operator._node_trees[self._base_node_tree]
-        if len(nt_info._lib_dependencies) == 0:
+        if len(self._node_tree_info._lib_dependencies) == 0:
             return
         self._operator._inner_indent_level -= 1
         self._write("# Import node groups from Blender essentials library")
         self._write(f"{DATAFILES_PATH} = bpy.utils.system_resource('DATAFILES')")
-        for path, node_trees in nt_info._lib_dependencies.items():
+        for path, node_trees in self._node_tree_info._lib_dependencies.items():
             self._write(f"{LIB_RELPATH} = {str_to_py_str(str(path))}")
             self._write(f"{LIB_PATH} = os.path.join({DATAFILES_PATH}, {LIB_RELPATH})")
             self._write(f"with bpy.data.libraries.load({LIB_PATH}, link=True) "
@@ -229,14 +221,14 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
     ) -> NTP_NodeTree:
         return NTP_NodeTree(node_tree, nt_var)
 
-    def _process_node_tree(self, node_tree: bpy.types.NodeTree) -> None:
+    def _process_node_tree(self) -> None:
         """
         Generates a Python function to recreate a compositor node tree
 
         Parameters:
         node_tree (NodeTree): node tree to be recreated
         """
-
+        node_tree = self._node_tree_info._base_tree
         nt_var = self._create_var(node_tree.name)
         self._node_tree_vars[node_tree] = nt_var
 
@@ -1754,8 +1746,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         node_tree: bpy.types.NodeTree,
         indent_level: int
     ) -> None:
-        print(f"{self._base_node_tree.name} creating node tree creation for {node_tree.name}")
-
         node_tree_info = self._operator._node_trees[node_tree]
         if node_tree in self._node_tree_vars:
             nt_var = self._node_tree_vars[node_tree]
