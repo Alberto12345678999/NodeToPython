@@ -111,12 +111,18 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._node_settings = node_settings
 
     def export(self) -> None:
+        # TODO: cleanup
+        if self._operator._mode == 'SCRIPT':
+            self._import_essential_libs()
+
         if self._node_tree_info._group_type.is_group():
             self._process_node_tree(self._base_node_tree)
 
         if self._operator._mode == 'ADDON' and self._node_tree_info._is_base:
             self._init_operator(self._obj_var, self._node_tree_info._obj.name)
             self._write("def execute(self, context: bpy.types.Context):", 1)
+
+            self._import_essential_libs()
 
             # node tree names
             self._write("# Maps node tree creation functions to the node tree ", 2)
@@ -212,11 +218,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
                 self._write(f"\tif {name_str} in {DATA_SRC}.node_groups:")
                 self._write(f"\t\t{DATA_DST}.node_groups.append({name_str})")
                 # TODO: handle bad case with warning (in both script and addon mode)
-            
-            for i, node_tree in enumerate(node_trees):
-                nt_var = self._create_var(node_tree.name)
-                self._node_tree_vars[node_tree] = nt_var
-                self._write(f"{nt_var} = {DATA_DST}.node_groups[{i}]")
         self._write("\n")
         self._operator._inner_indent_level += 1
 
@@ -235,7 +236,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         Parameters:
         node_tree (NodeTree): node tree to be recreated
         """
-        self._import_essential_libs()
 
         nt_var = self._create_var(node_tree.name)
         self._node_tree_vars[node_tree] = nt_var
@@ -999,26 +999,28 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
                 f"{node_var}.{attr_name} = bpy.data.node_groups[{name_var}]"
             )
             return
-        elif node_tree in self._node_tree_vars:
+        else:
             # Library nodes
 
             # Keys don't seem to be unique for linked groups, 
             # need to do this nonsense
             self._write(f"# Finding linked library node group")
             self._write(f"for {NODE_GROUP} in bpy.data.node_groups:")
-            self._write(f"if {NODE_GROUP}.name == {str_to_py_str(node_tree.name)}:",
-                        self._operator._inner_indent_level + 1)
-            self._write(f"if {NODE_GROUP}.bl_idname == {enum_to_py_str(node_tree.bl_idname)}:",
+            self._write(f"if (", self._operator._inner_indent_level + 1)
+            self._write(f"{NODE_GROUP}.name == {str_to_py_str(node_tree.name)}",
                         self._operator._inner_indent_level + 2)
+            self._write(f"and {NODE_GROUP}.bl_idname == {enum_to_py_str(node_tree.bl_idname)}",
+                        self._operator._inner_indent_level + 2)
+            self._write("):", self._operator._inner_indent_level + 1)
             self._write(f"{node_var}.{attr_name} = {NODE_GROUP}",
-                        self._operator._inner_indent_level + 3)
+                        self._operator._inner_indent_level + 2)
+            
+            self._write(f"if {node_var}.{attr_name} is None:")
+            self._write(f"print(\"Couldn't find node group "
+                        f"{node_tree.name}, failing\")",
+                        self._operator._inner_indent_level + 1)
+            self._write(f"return", self._operator._inner_indent_level + 1)
             return
-                
-        self._operator.report(
-            {'ERROR'}, 
-            f"NodeToPython: Node tree dependency graph " 
-            f"wasn't properly initialized! Couldn't find "
-            f"node tree {node_tree.name}")
             
     def _save_image(self, img: bpy.types.Image) -> bool:
         """
