@@ -406,7 +406,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 if nt not in self._node_trees:
                     self._node_trees[nt] = NodeTreeInfo()
                     self._node_trees[nt]._obj = nt
-                    self._node_trees[nt]._module = clean_string(node_tree.name)
+                    self._node_trees[nt]._module = clean_string(node_info._module)
                     self._node_trees[nt]._base_tree = nt
                     self._node_trees[nt]._group_type = group_type
                 group_nodes = [node for node in nt.nodes
