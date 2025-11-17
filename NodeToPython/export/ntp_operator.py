@@ -398,7 +398,6 @@ class NTP_OT_Export(bpy.types.Operator):
                     print(f"Library {lib_path} didn't seem essential, copying node groups")
 
             if nt not in self._visited:
-                print(f"Visiting {nt.name}")
                 self._visited.add(nt)
                 if nt not in self._node_trees:
                     self._node_trees[nt] = NodeTreeInfo()

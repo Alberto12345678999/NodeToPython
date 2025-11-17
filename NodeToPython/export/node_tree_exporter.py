@@ -271,9 +271,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         nt_var = self._node_tree_vars[node_tree]
 
         if bpy.app.version >= (4, 2, 0):
-            view_center_str = vec2_to_py_str(node_tree.view_center)
-            self._write(f"{nt_var}.view_center = {view_center_str}")
-
             color_tag_str = enum_to_py_str(node_tree.color_tag)
             self._write(f"{nt_var}.color_tag = {color_tag_str}")
 
