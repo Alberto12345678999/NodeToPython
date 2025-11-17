@@ -273,8 +273,10 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         if bpy.app.version >= (4, 2, 0):
             color_tag_str = enum_to_py_str(node_tree.color_tag)
             self._write(f"{nt_var}.color_tag = {color_tag_str}")
+
             desc_str = str_to_py_str(node_tree.description)
             self._write(f"{nt_var}.description = {desc_str}")
+
         if bpy.app.version >= (4, 3, 0):
             default_width = node_tree.default_group_node_width
             self._write(f"{nt_var}.default_group_node_width = {default_width}")
