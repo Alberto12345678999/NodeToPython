@@ -173,16 +173,19 @@ class ShaderExporter(NodeTreeExporter):
         regular_attrs = [
             "cutoff_distance",
             "diffuse_factor",
-            "exposure",
-            "normalize",
             "specular_factor",
-            "temperature",
             "transmission_factor",
             "use_custom_distance",
             "use_shadow",
-            "use_temperature",
             "volume_factor"
         ]
+        if bpy.app.version >= (4, 5, 0):
+            regular_attrs += [
+                "exposure", 
+                "normalize", 
+                "temperature", 
+                "use_temperature"
+            ]
 
         enum_attrs = [
         ]
