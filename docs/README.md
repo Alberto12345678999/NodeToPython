@@ -5,7 +5,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/BrendanParmer/NodeToPython)](https://github.com/BrendanParmer/NodeToPython/releases) [![GitHub](https://img.shields.io/github/license/BrendanParmer/NodeToPython)](https://github.com/BrendanParmer/NodeToPython/blob/main/LICENSE) ![](https://visitor-badge.laobi.icu/badge?page_id=BrendanParmer.NodeToPython) ![](https://img.shields.io/github/downloads/BrendanParmer/NodeToPython/total.svg)
  
 ## About
-A Blender add-on to create scripts and add-ons! This add-on will take your Geometry Nodes, Materials, and Compositing nodes and convert them into legible Python code.
+A Blender add-on to create scripts and add-ons! This add-on will take your node graphs and convert them into legible Python code. Easily convert Geometry, Shader, and Compositing Nodes at the click of a button.
 
 Node To Python automatically handles node layout, default values, subgroups, naming, colors, and more! 
 
@@ -19,20 +19,20 @@ NodeToPython v4.0.0 is supported for Blender 4.2 - 5.0 on Windows, macOS, and Li
 
 ## Installation
 ### Blender Extensions Platform
-NodeToPython is now on the official [Blender Extensions Platform](https://extensions.blender.org/add-ons/node-to-python/)! See https://extensions.blender.org/about/ for installation instructions and more info. This is the recommended way to install NodeToPython.
+NodeToPython is available on the official [Blender Extensions Platform](https://extensions.blender.org/add-ons/node-to-python/)! See https://extensions.blender.org/about/ for installation instructions and more info. This is the recommended way to install NodeToPython.
 
 ### GitHub
 1. Download the `NodeToPython.zip` file from the [latest release](https://github.com/BrendanParmer/NodeToPython/releases)
     * If you download other options, you'll need to rename the zip and the first folder to "NodeToPython" so Blender can properly import the add-on
-2. In Blender, navigate to `Edit > Preferences > Add-ons`
-3. Click Install, and find where you downloaded the zip file. Then hit the `Install Add-on` button, and you're done!
+2. In Blender, navigate to `Edit > Preferences > Get Extensions`
+3. In the drop-down to the right of `Repositories`, click `Install from Disk...` and select the zip file.
 
 ## Usage
 Once you've installed the add-on, you'll see a new tab in any Node Editor's sidebar. You can open this with keyboard shortcut `N` when focused in the Node Editor.
 
 In the tab, there are panels to create add-ons for Geometry Nodes, Materials, and Compositing Nodes, each with a drop-down menu. You can set options in the options tab.
 
-![Add-on Location](./img/NodeToPython_Location.png "Add-on Location")
+![Picture showing NodeToPython's located in the node editor](img/ntp_location.png)
 
 In the options panel, select either **Script** or **Add-on**. 
 * **Script** mode creates a function that generates the node tree and copies it to your Blender clipboard.
