@@ -31,8 +31,7 @@ class NTP_PT_GenerationSettings(bpy.types.Panel):
             "indentation_type",
             "link_external_node_groups"
         ]
-        if bpy.app.version >= (3, 4, 0):
-            generation_options.append("set_unavailable_defaults")
+        generation_options.append("set_unavailable_defaults")
 
         if ntp_options.mode == 'SCRIPT':
             script_options = [

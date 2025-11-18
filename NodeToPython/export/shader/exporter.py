@@ -115,7 +115,7 @@ class ShaderExporter(NodeTreeExporter):
             "thickness_mode",
             "volume_intersection_method"
         ]
-        if bpy.app.version == (4, 2, 0):
+        if bpy.app.version < (4, 3, 0):
             enum_attrs.append("shadow_method")
 
         vec3_attrs = [

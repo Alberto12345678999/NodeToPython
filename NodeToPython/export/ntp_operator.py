@@ -26,6 +26,7 @@ RESERVED_NAMES = {
     NODE_TREE_NAMES
 }
 
+MIN_BLENDER_VERSION = (4, 2, 0)
 MAX_BLENDER_VERSION = (5, 1, 0)
 
 class NodeTreeInfo():
@@ -90,9 +91,8 @@ class NTP_OT_Export(bpy.types.Operator):
 
         self._link_external_node_groups = True
 
-        if bpy.app.version >= (3, 4, 0):
-            # Set default values for hidden sockets
-            self._set_unavailable_defaults = False
+        # Set default values for hidden sockets
+        self._set_unavailable_defaults = False
 
     def execute(self, context: bpy.types.Context):
         if bpy.app.version >= MAX_BLENDER_VERSION:
@@ -102,7 +102,7 @@ class NTP_OT_Export(bpy.types.Operator):
                 f"NodeToPython is currently supported up to "
                 f"{vec3_to_py_str(MAX_BLENDER_VERSION)}.\n"
                 f"Some nodes, settings, and features may not work yet. "
-                f" For more details, visit "
+                f"For more details, visit "
             )
             self.report(
                 {'WARNING'},
@@ -110,6 +110,20 @@ class NTP_OT_Export(bpy.types.Operator):
                 "docs/README.md#supported-versions "
             )
             return {'CANCELLED'}
+        elif bpy.app.version < MIN_BLENDER_VERSION:
+            self.report(
+                {'WARNING'},
+                f"Blender version {bpy.app.version} has been deprecated.\n"
+                f"NodeToPython currently requires a minimum version of "
+                f"{vec3_to_py_str(MIN_BLENDER_VERSION)}.\n"
+                f"Some nodes, settings, and features may not work. "
+                f"For more details, visit "
+            )
+            self.report(
+                {'WARNING'},
+                "\t\thttps://github.com/BrendanParmer/NodeToPython/blob/main/"
+                "docs/README.md#supported-versions "
+            )
         
         if not self._setup_options(getattr(context.scene, "ntp_options")):
             return {'CANCELLED'}
@@ -178,8 +192,7 @@ class NTP_OT_Export(bpy.types.Operator):
             self._create_registration_funcs()
             self._create_main_func()
             self._create_license()
-            if bpy.app.version >= (4, 2, 0):
-                self._create_manifest()
+            self._create_manifest()
         else:
             # node tree names
             self._write("if __name__ == \"__main__\":", 0)
@@ -223,8 +236,7 @@ class NTP_OT_Export(bpy.types.Operator):
 
         self._link_external_node_groups = options.link_external_node_groups
 
-        if bpy.app.version >= (3, 4, 0):
-            self._set_unavailable_defaults = options.set_unavailable_defaults
+        self._set_unavailable_defaults = options.set_unavailable_defaults
 
         #Script
         if options.mode == 'SCRIPT':
@@ -508,32 +520,29 @@ class NTP_OT_Export(bpy.types.Operator):
         license_file.write(license_txt)
         license_file.close()
 
-    if bpy.app.version >= (4, 2, 0):
-        def _create_manifest(self) -> None:
-            manifest = open(f"{self._addon_dir}/blender_manifest.toml", "w")
-            manifest.write("schema_version = \"1.0.0\"\n\n")
-            idname = clean_string(self._name)
-            manifest.write(f"id = {str_to_py_str(idname)}\n")
-
-            manifest.write(f"version = {version_to_manifest_str(self._version)}\n")
-            manifest.write(f"name = {str_to_py_str(self._name)}\n")
-            if self._description == "":
-                self._description = self._name
-            manifest.write(f"tagline = {str_to_py_str(self._description)}\n")
-            manifest.write(f"maintainer = {str_to_py_str(self._author_name)}\n")
-            manifest.write("type = \"add-on\"\n")
-            min_version_str = f"{version_to_manifest_str(bpy.app.version)}"
-            manifest.write(f"blender_version_min = {min_version_str}\n")
-            if self._license != 'OTHER':
-                manifest.write(f"license = [{str_to_py_str(self._license)}]\n")
-            else:
-                self.report(
-                    {'WARNING'}, 
-                    "No license selected. Please add a license to "
-                    "the manifest file"
-                )
-
-            manifest.close()
+    def _create_manifest(self) -> None:
+        manifest = open(f"{self._addon_dir}/blender_manifest.toml", "w")
+        manifest.write("schema_version = \"1.0.0\"\n\n")
+        idname = clean_string(self._name)
+        manifest.write(f"id = {str_to_py_str(idname)}\n")
+        manifest.write(f"version = {version_to_manifest_str(self._version)}\n")
+        manifest.write(f"name = {str_to_py_str(self._name)}\n")
+        if self._description == "":
+            self._description = self._name
+        manifest.write(f"tagline = {str_to_py_str(self._description)}\n")
+        manifest.write(f"maintainer = {str_to_py_str(self._author_name)}\n")
+        manifest.write("type = \"add-on\"\n")
+        min_version_str = f"{version_to_manifest_str(bpy.app.version)}"
+        manifest.write(f"blender_version_min = {min_version_str}\n")
+        if self._license != 'OTHER':
+            manifest.write(f"license = [{str_to_py_str(self._license)}]\n")
+        else:
+            self.report(
+                {'WARNING'}, 
+                "No license selected. Please add a license to "
+                "the manifest file"
+            )
+        manifest.close()
 
     def _call_node_tree_creation(
         self, 

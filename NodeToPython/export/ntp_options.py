@@ -53,12 +53,11 @@ class NTP_PG_Options(bpy.types.PropertyGroup):
         default = True
     )
 
-    if bpy.app.version >= (3, 4, 0):
-        set_unavailable_defaults : bpy.props.BoolProperty(
-            name = "Set unavailable defaults",
-            description = "Set default values for unavailable sockets",
-            default = False
-        )
+    set_unavailable_defaults : bpy.props.BoolProperty(
+        name = "Set unavailable defaults",
+        description = "Set default values for unavailable sockets",
+        default = False
+    )
 
     #Script properties
     include_imports : bpy.props.BoolProperty(

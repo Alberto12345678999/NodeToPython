@@ -9,9 +9,3 @@ class NTP_NodeTree:
         self._var: str = var
 
         self._zone_inputs: dict[str, list[bpy.types.Node]] = {}
-
-        if bpy.app.version < (4, 0, 0):
-            # Keep track of if we need to set the default values for the node
-            # tree inputs and outputs
-            self.inputs_set: bool = False
-            self.outputs_set: bool = False

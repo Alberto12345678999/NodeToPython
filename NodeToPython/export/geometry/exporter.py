@@ -38,42 +38,37 @@ class GeometryNodesExporter(NodeTreeExporter):
 
     def _set_node_tree_properties(self, node_tree: bpy.types.NodeTree) -> None:
         NodeTreeExporter._set_node_tree_properties(self, node_tree)
-        if bpy.app.version >= (4, 0, 0):
-            self._set_geo_tree_properties(node_tree)
+        self._set_geo_tree_properties(node_tree)
 
-    if bpy.app.version >= (4, 0, 0):
-        def _set_geo_tree_properties(self, node_tree: bpy.types.GeometryNodeTree) -> None:
-            is_mod = node_tree.is_modifier
-            is_tool = node_tree.is_tool
-
-            nt_var = self._node_tree_vars[node_tree]
-
-            if is_mod:
-                self._write(f"{nt_var}.is_modifier = True")
-            if is_tool:
-                self._write(f"{nt_var}.is_tool = True")
-
-                tool_flags =  [
-                    "is_mode_object",
-                    "is_mode_edit", 
-                    "is_mode_sculpt",
-                    "is_type_curve",
-                    "is_type_mesh",
-                    "is_type_point_cloud"
-                ]
+    def _set_geo_tree_properties(self, node_tree: bpy.types.GeometryNodeTree) -> None:
+        is_mod = node_tree.is_modifier
+        is_tool = node_tree.is_tool
+        nt_var = self._node_tree_vars[node_tree]
+        if is_mod:
+            self._write(f"{nt_var}.is_modifier = True")
             
-                for flag in tool_flags:
-                    if hasattr(node_tree, flag) is True:
-                        self._write(f"{nt_var}.{flag} = {getattr(node_tree, flag)}")
+        if is_tool:
+            self._write(f"{nt_var}.is_tool = True")
+            tool_flags =  [
+                "is_mode_object",
+                "is_mode_edit", 
+                "is_mode_sculpt",
+                "is_type_curve",
+                "is_type_mesh",
+                "is_type_point_cloud"
+            ]
+        
+            for flag in tool_flags:
+                if hasattr(node_tree, flag) is True:
+                    self._write(f"{nt_var}.{flag} = {getattr(node_tree, flag)}")
 
-            if bpy.app.version >= (4, 2, 0):
-                if node_tree.use_wait_for_click:
-                    self._write(f"{nt_var}.use_wait_for_click = True")
-                    
-            if bpy.app.version >= (5, 0, 0):
-                if node_tree.show_modifier_manage_panel:
-                    self._write(f"{nt_var}.show_modifier_manage_panel = True")
-            self._write("", 0)
+        if node_tree.use_wait_for_click:
+            self._write(f"{nt_var}.use_wait_for_click = True")
+                
+        if bpy.app.version >= (5, 0, 0):
+            if node_tree.show_modifier_manage_panel:
+                self._write(f"{nt_var}.show_modifier_manage_panel = True")
+        self._write("", 0)
 
     # NodeTreeExporter interface
     def _create_obj(self) -> None:

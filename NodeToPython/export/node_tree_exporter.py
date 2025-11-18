@@ -238,8 +238,7 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         self._set_node_tree_properties(node_tree)
         
-        if bpy.app.version >= (4, 0, 0):
-            self._tree_interface_settings(ntp_nt)
+        self._tree_interface_settings(ntp_nt)
 
         #initialize nodes
         self._write(f"# Initialize {nt_var} nodes\n")
@@ -270,12 +269,11 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
     def _set_node_tree_properties(self, node_tree: bpy.types.NodeTree) -> None:
         nt_var = self._node_tree_vars[node_tree]
 
-        if bpy.app.version >= (4, 2, 0):
-            color_tag_str = enum_to_py_str(node_tree.color_tag)
-            self._write(f"{nt_var}.color_tag = {color_tag_str}")
+        color_tag_str = enum_to_py_str(node_tree.color_tag)
+        self._write(f"{nt_var}.color_tag = {color_tag_str}")
 
-            desc_str = str_to_py_str(node_tree.description)
-            self._write(f"{nt_var}.description = {desc_str}")
+        desc_str = str_to_py_str(node_tree.description)
+        self._write(f"{nt_var}.description = {desc_str}")
 
         if bpy.app.version >= (4, 3, 0):
             default_width = node_tree.default_group_node_width
@@ -451,10 +449,9 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         if socket.layer_selection_field:
             self._write(f"{socket_var}.layer_selection_field = True")
 
-        if bpy.app.version >= (4, 2, 0):
-            # is inspect output
-            if socket.is_inspect_output:
-                self._write(f"{socket_var}.is_inspect_output = True")
+        # is inspect output
+        if socket.is_inspect_output:
+            self._write(f"{socket_var}.is_inspect_output = True")
 
         if bpy.app.version >= (4, 5, 0):
             # default input
@@ -510,15 +507,11 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             closed_str = ""
             if panel.default_closed is True:
                 closed_str = f", default_closed=True"
-                
-            parent_str = ""
-            if parent is not None and bpy.app.version < (4, 2, 0):
-                parent_str = f", parent = {panel_dict[parent]}"     
 
-            self._write(f"{panel_var} = "
-                        f"{ntp_nt._var}.interface.new_panel("
-                        f"{str_to_py_str(panel.name)}"
-                        f"{closed_str}{parent_str})")
+            self._write(
+                f"{panel_var} = {ntp_nt._var}.interface.new_panel("
+                f"{str_to_py_str(panel.name)}{closed_str})"
+            )
 
             # tooltip
             if panel.description != "":
@@ -555,21 +548,21 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         dv = getattr(socket_interface, "default_value")
 
-        if bpy.app.version >= (4, 1, 0):
-            if type(socket_interface) is bpy.types.NodeTreeInterfaceSocketMenu:
-                if dv == "":
-                    self._operator.report({'WARNING'},
-                        "NodeToPython: No menu found for socket "
-                        f"{socket_interface.name}"
-                    )
-                    return
-
-                self._write_after_links.append(
-                    lambda _socket_var=socket_var, _dv=enum_to_py_str(dv): (
-                        self._write(f"{_socket_var}.default_value = {_dv}")
-                    )
+        if type(socket_interface) is bpy.types.NodeTreeInterfaceSocketMenu:
+            if dv == "":
+                self._operator.report(
+                    {'WARNING'},
+                    "NodeToPython: No menu found for socket "
+                    f"{socket_interface.name}"
                 )
                 return
+
+            self._write_after_links.append(
+                lambda _socket_var=socket_var, _dv=enum_to_py_str(dv): (
+                    self._write(f"{_socket_var}.default_value = {_dv}")
+                )
+            )
+            return
         
         if type(socket_interface) == bpy.types.NodeTreeInterfaceSocketColor:
             dv = vec4_to_py_str(dv)
@@ -1104,104 +1097,90 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             self._write(f"{img_user_var}.{img_usr_attr} = "
                         f"{getattr(img_user, img_usr_attr)}")
 
-    if bpy.app.version >= (3, 6, 0):
-        def _output_zone_items(self, output_items, items_str: str, 
-                               is_sim: bool) -> None:
-            """
-            Set items for a zone's output
+    def _output_zone_items(self, output_items, items_str: str, 
+                            is_sim: bool) -> None:
+        """
+        Set items for a zone's output
 
-            output_items (NodeGeometry(Simulation/Repeat)OutputItems): items
-                to copy
-            items_str (str): 
-            """
-            self._write(f"{items_str}.clear()")
-            for i, item in enumerate(output_items):
-                socket_type = enum_to_py_str(item.socket_type)
-                name = str_to_py_str(item.name)
-                self._write(f"# Create item {name}")
-                self._write(f"{items_str}.new({socket_type}, {name})")
+        output_items (NodeGeometry(Simulation/Repeat)OutputItems): items
+            to copy
+        items_str (str): 
+        """
+        self._write(f"{items_str}.clear()")
+        for i, item in enumerate(output_items):
+            socket_type = enum_to_py_str(item.socket_type)
+            name = str_to_py_str(item.name)
+            self._write(f"# Create item {name}")
+            self._write(f"{items_str}.new({socket_type}, {name})")
 
-                if is_sim:
-                    item_var = f"{items_str}[{i}]"
-                    ad = enum_to_py_str(item.attribute_domain)
-                    self._write(f"{item_var}.attribute_domain = {ad}")
-
-    if bpy.app.version >= (4, 1, 0) and bpy.app.version < (4, 2, 0):
-        def _enum_definition(self, enum_def: bpy.types.NodeEnumDefinition, 
-                             enum_def_str: str) -> None:
-            """
-            Set enum definition item for a node
-            
-            Parameters:
-            enum_def (bpy.types.NodeEnumDefinition): enum definition to replicate
-            enum_def_str (str): string for the generated enum definition
-            """
-            self._write(f"{enum_def_str}.enum_items.clear()")
-            for i, enum_item in enumerate(enum_def.enum_items):
-                name = str_to_py_str(enum_item.name)
-                self._write(f"{enum_def_str}.enum_items.new({name})")
-                if enum_item.description != "":
-                    self._write(f"{enum_def_str}.enum_items[{i}].description = "
-                                f"{str_to_py_str(enum_item.description)}")
+            if is_sim:
+                item_var = f"{items_str}[{i}]"
+                ad = enum_to_py_str(item.attribute_domain)
+                self._write(f"{item_var}.attribute_domain = {ad}")
                     
-    if bpy.app.version >= (4, 1, 0):
-        def _index_switch_items(self, switch_items: bpy.types.NodeIndexSwitchItems,   
-                                items_str: str) -> None:
-            """
-            Set the proper amount of index switch items
+    def _index_switch_items(self, switch_items: bpy.types.NodeIndexSwitchItems,   
+                            items_str: str) -> None:
+        """
+        Set the proper amount of index switch items
 
-            Parameters:
-            switch_items (bpy.types.NodeIndexSwitchItems): switch items to copy
-            items_str (str): string for the generated switch items attribute
-            """
-            num_items = len(switch_items)
-            self._write(f"{items_str}.clear()")
-            for i in range(num_items):
-                self._write(f"{items_str}.new()")
+        Parameters:
+        switch_items (bpy.types.NodeIndexSwitchItems): switch items to copy
+        items_str (str): string for the generated switch items attribute
+        """
+        num_items = len(switch_items)
+        self._write(f"{items_str}.clear()")
+        for i in range(num_items):
+            self._write(f"{items_str}.new()")
 
-        def _bake_items(self, bake_items: bpy.types.NodeGeometryBakeItems,
-                        bake_items_str: str) -> None:
-            """
-            Set bake items for a node
+    def _bake_items(self, bake_items: bpy.types.NodeGeometryBakeItems,
+                    bake_items_str: str) -> None:
+        """
+        Set bake items for a node
+        
+        Parameters:
+        bake_items (bpy.types.NodeGeometryBakeItems): bake items to replicate
+        bake_items_str (str): string for the generated bake items
+        """
+        self._write(f"{bake_items_str}.clear()")
+        for i, bake_item in enumerate(bake_items):
+            socket_type = enum_to_py_str(bake_item.socket_type)
+            name = str_to_py_str(bake_item.name)
+            self._write(f"{bake_items_str}.new({socket_type}, {name})")
             
-            Parameters:
-            bake_items (bpy.types.NodeGeometryBakeItems): bake items to replicate
-            bake_items_str (str): string for the generated bake items
-            """
-            self._write(f"{bake_items_str}.clear()")
-            for i, bake_item in enumerate(bake_items):
-                socket_type = enum_to_py_str(bake_item.socket_type)
-                name = str_to_py_str(bake_item.name)
-                self._write(f"{bake_items_str}.new({socket_type}, {name})")
-                
-                ad = enum_to_py_str(bake_item.attribute_domain)
-                self._write(f"{bake_items_str}[{i}].attribute_domain = {ad}")
+            ad = enum_to_py_str(bake_item.attribute_domain)
+            self._write(f"{bake_items_str}[{i}].attribute_domain = {ad}")
 
-                if bake_item.is_attribute:
-                    self._write(f"{bake_items_str}[{i}].is_attribute = True")
+            if bake_item.is_attribute:
+                self._write(f"{bake_items_str}[{i}].is_attribute = True")
     
-    if bpy.app.version >= (4, 2, 0):
-        def _capture_attribute_items(self, capture_attribute_items: bpy.types.NodeGeometryCaptureAttributeItems, capture_attrs_str: str) -> None:
-            """
-            Sets capture attribute items
-            """
-            self._write(f"{capture_attrs_str}.clear()")
-            for item in capture_attribute_items:
-                name = str_to_py_str(item.name)
-                self._write(f"{capture_attrs_str}.new('FLOAT', {name})")
+    def _capture_attribute_items(
+        self, 
+        capture_attribute_items: bpy.types.NodeGeometryCaptureAttributeItems, 
+        capture_attrs_str: str
+    ) -> None:
+        """
+        Sets capture attribute items
+        """
+        self._write(f"{capture_attrs_str}.clear()")
+        for item in capture_attribute_items:
+            name = str_to_py_str(item.name)
+            self._write(f"{capture_attrs_str}.new('FLOAT', {name})")
+            # Need to initialize capture attribute item with a socket,
+            # which has a slightly different enum to the attribute type
+            data_type = enum_to_py_str(item.data_type)
+            self._write(f"{capture_attrs_str}[{name}].data_type = {data_type}")
 
-                # Need to initialize capture attribute item with a socket,
-                # which has a slightly different enum to the attribute type
-                data_type = enum_to_py_str(item.data_type)
-                self._write(f"{capture_attrs_str}[{name}].data_type = {data_type}")
-
-        def _menu_switch_items(self, menu_switch_items: bpy.types.NodeMenuSwitchItems, menu_switch_items_str: str) -> None:
-            self._write(f"{menu_switch_items_str}.clear()")
-            for i, item in enumerate(menu_switch_items):
-                name_str = str_to_py_str(item.name)
-                self._write(f"{menu_switch_items_str}.new({name_str})")
-                desc_str = str_to_py_str(item.description)
-                self._write(f"{menu_switch_items_str}[{i}].description = {desc_str}")
+    def _menu_switch_items(
+        self, 
+        menu_switch_items: bpy.types.NodeMenuSwitchItems, 
+        menu_switch_items_str: str
+    ) -> None:
+        self._write(f"{menu_switch_items_str}.clear()")
+        for i, item in enumerate(menu_switch_items):
+            name_str = str_to_py_str(item.name)
+            self._write(f"{menu_switch_items_str}.new({name_str})")
+            desc_str = str_to_py_str(item.description)
+            self._write(f"{menu_switch_items_str}[{i}].description = {desc_str}")
 
     if bpy.app.version >= (4, 3, 0):
         def _foreach_geo_element_generation_items(self,
@@ -1456,9 +1435,8 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
 
         for i, input in enumerate(node.inputs):
             if input.bl_idname not in DONT_SET_DEFAULTS and not input.is_linked:
-                if bpy.app.version >= (3, 4, 0):
-                    if (not self._operator._set_unavailable_defaults) and input.is_unavailable:
-                        continue
+                if (not self._operator._set_unavailable_defaults) and input.is_unavailable:
+                    continue
                     
                 # TODO: this could be cleaner
                 socket_var = f"{node_var}.inputs[{i}]"
@@ -1582,29 +1560,28 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
         self._write(f"{socket_var}.default_value = bpy.data.{type}[{name}]",
                     self._operator._inner_indent_level + 1)
 
-    if bpy.app.version >= (3, 6, 0):
-        def _process_zones(self, zone_input_list: list[bpy.types.Node]) -> None:
-            """
-            Recreates a zone
-            zone_input_list (list[bpy.types.Node]): list of zone input 
-                nodes
-            """
-            for input_node in zone_input_list:
-                zone_output = getattr(input_node, "paired_output")
+    def _process_zones(self, zone_input_list: list[bpy.types.Node]) -> None:
+        """
+        Recreates a zone
+        zone_input_list (list[bpy.types.Node]): list of zone input 
+            nodes
+        """
+        for input_node in zone_input_list:
+            zone_output = getattr(input_node, "paired_output")
 
-                zone_input_var = self._node_vars[input_node]
-                zone_output_var = self._node_vars[zone_output]
+            zone_input_var = self._node_vars[input_node]
+            zone_output_var = self._node_vars[zone_output]
 
-                self._write(f"# Process zone input {input_node.name}")
-                self._write(f"{zone_input_var}.pair_with_output"
-                            f"({zone_output_var})")
+            self._write(f"# Process zone input {input_node.name}")
+            self._write(f"{zone_input_var}.pair_with_output"
+                        f"({zone_output_var})")
 
-                #must set defaults after paired with output
-                self._set_socket_defaults(input_node)
-                self._set_socket_defaults(zone_output)
+            #must set defaults after paired with output
+            self._set_socket_defaults(input_node)
+            self._set_socket_defaults(zone_output)
 
-            if zone_input_list:
-                self._write("", 0)
+        if zone_input_list:
+            self._write("", 0)
 
     def _get_node_var(
         self, 
@@ -1708,7 +1685,6 @@ class NodeTreeExporter(metaclass=abc.ABCMeta):
             gnashing of teeth. This is a quick fix that
             doesn't run quick
             """
-            # TODO: try using index() method
             for i, item in enumerate(link.from_node.outputs.items()):
                 if item[1] == input_socket:
                     input_idx = i
