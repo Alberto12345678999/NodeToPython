@@ -7,12 +7,11 @@ from ..ntp_node_tree import NTP_NodeTree
 from ..ntp_operator import NTP_OT_Export, NodeTreeInfo
 from ..utils import *
 
-SCENE = "scene"
 BASE_NAME = "base_name"
 END_NAME = "end_name"
 NODE = "node"
 
-COMP_OP_RESERVED_NAMES = {SCENE, BASE_NAME, END_NAME, NODE} 
+COMP_OP_RESERVED_NAMES = {BASE_NAME, END_NAME, NODE} 
 
 class CompositorExporter(NodeTreeExporter):
     def __init__(
@@ -53,10 +52,12 @@ class CompositorExporter(NodeTreeExporter):
         self._write(f"{INDEX} += 1\n", indent_level + 2)
 
         self._write(f"bpy.ops.scene.new(type='NEW')", indent_level)
-        self._write(f"{SCENE} = bpy.context.scene", indent_level)
-        self._write(f"{SCENE}.name = {END_NAME}", indent_level)
-        self._write(f"{SCENE}.use_fake_user = True", indent_level)
-        self._write(f"bpy.context.window.scene = {SCENE}", indent_level)
+        self._write(f"{self._obj_var} = bpy.context.scene", indent_level)
+        self._write(f"{self._obj_var}.name = {END_NAME}", indent_level)
+        self._write(f"{self._obj_var}.use_fake_user = True", indent_level)
+        self._write(f"bpy.context.window.scene = {self._obj_var}", indent_level)
+        self._write(f"if bpy.app.version < (5, 0, 0):", indent_level)
+        self._write(f"{self._obj_var}.use_nodes = True", indent_level + 1)
 
         regular_attrs = [
             "audio_doppler_factor",
@@ -120,15 +121,15 @@ class CompositorExporter(NodeTreeExporter):
 
         if self._node_tree_info._group_type == NodeGroupType.SCENE:
             self._write("if bpy.app.version < (5, 0, 0):")
-            self._write(f"{ntp_node_tree._var} = {SCENE}.node_tree",
+            self._write(f"{ntp_node_tree._var} = {self._obj_var}.node_tree",
                         self._operator._inner_indent_level + 1)
             self._write("else:")
-            self._write((f"{SCENE}.compositing_node_group = "
+            self._write((f"{self._obj_var}.compositing_node_group = "
                          f"bpy.data.node_groups.new("
                          f"type = \'CompositorNodeTree\', "
                          f"name = {str_to_py_str(nt_name)})"),
                          self._operator._inner_indent_level + 1)
-            self._write(f"{ntp_node_tree._var} = {SCENE}.compositing_node_group",
+            self._write(f"{ntp_node_tree._var} = {self._obj_var}.compositing_node_group",
                         self._operator._inner_indent_level + 1)
             self._write("", 0)
             self._write(f"# Start with a clean node tree")
