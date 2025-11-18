@@ -52,11 +52,11 @@ class NTP_PT_Main(bpy.types.Panel):
 
         if location == "":
             export_text = "Add a save location to get started!"
-            export_icon = 'WARNING_LARGE'
+            export_icon = 'ERROR'
 
         if num_node_groups == 0:
             export_text = "Add a node group to get started!"
-            export_icon = 'WARNING_LARGE'
+            export_icon = 'ERROR'
 
         export_button = row.operator(
             NTP_OT_Export.bl_idname, 

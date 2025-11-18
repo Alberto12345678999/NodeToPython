@@ -45,9 +45,10 @@ NO_DEFAULT_SOCKETS = {
     bpy.types.NodeTreeInterfaceSocketMaterial,
     bpy.types.NodeTreeInterfaceSocketObject,
     bpy.types.NodeTreeInterfaceSocketShader,
-    bpy.types.NodeTreeInterfaceSocketTexture,
-    bpy.types.NodeTreeInterfaceSocketClosure
+    bpy.types.NodeTreeInterfaceSocketTexture
 }
+if bpy.app.version >= (5, 0, 0):
+    NO_DEFAULT_SOCKETS.add(bpy.types.NodeTreeInterfaceSocketClosure)
 
 #node input sockets that are messy to set default values for
 DONT_SET_DEFAULTS = {
