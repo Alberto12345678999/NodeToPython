@@ -24,7 +24,7 @@ def clean_string(string: str, lower: bool = True) -> str:
     string = re.sub(r"[^a-zA-Z0-9_]", '_', string)
 
     if string == "":
-        string = "ntp"
+        string = "empty"
         
     if keyword.iskeyword(string):
         string = "_" + string
