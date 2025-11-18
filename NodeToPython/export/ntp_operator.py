@@ -80,6 +80,8 @@ class NTP_OT_Export(bpy.types.Operator):
         
         self._node_trees: dict[bpy.types.NodeTree, NodeTreeInfo] = {}
 
+        self._num_objs: int = 0
+
         # Generate socket default, min, and max values
         self._include_group_socket_values = True
 
@@ -89,6 +91,7 @@ class NTP_OT_Export(bpy.types.Operator):
         # Indentation string (default: four spaces)
         self._indentation = "    "
 
+        # Should we link external libraries (True), or recreate them (False)
         self._link_external_node_groups = True
 
         # Set default values for hidden sockets
@@ -301,6 +304,8 @@ class NTP_OT_Export(bpy.types.Operator):
         # TODO: this is really messy
         gatherer = NodeGroupGatherer()
         gatherer.gather_node_groups(context)
+
+        self._num_objs = gatherer.get_number_node_groups()
 
         # Peform topological sort on node groups to determine export order
         for group_type, groups in gatherer.node_groups.items():
@@ -600,9 +605,14 @@ class NTP_OT_Export(bpy.types.Operator):
         """
         if self._mode == 'SCRIPT':
             location = "clipboard"
+            if self._num_objs > 1:
+                save_obj = f"{self._num_objs} objects"
+            else:
+                save_obj = self._export_order[0]._obj.name
         else:
             location = self._dir_path
-        self.report({'INFO'}, f"NodeToPython: Saved {self._name} to {location}")
+            save_obj = self._name
+        self.report({'INFO'}, f"NodeToPython: Saved {save_obj} to {location}")
 
 classes = [
     NTP_OT_Export
