@@ -87,7 +87,9 @@ class GeometryNodesExporter(NodeTreeExporter):
         ntp_node_tree: NTP_NodeTree
     ) -> None:
         nt_name = ntp_node_tree._node_tree.name
-        self._node_tree_info._func = f"{ntp_node_tree._var}_node_group"
+        self._node_tree_info._func = self._operator._create_var(
+            f"{ntp_node_tree._var}_node_group"
+        )
         #initialize node group
         self._write(f"def {self._node_tree_info._func}("
                     f"{NODE_TREE_NAMES}: dict[typing.Callable, str]):", 

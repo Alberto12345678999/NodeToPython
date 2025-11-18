@@ -78,8 +78,10 @@ class NTP_OT_Export(bpy.types.Operator):
         for name in RESERVED_NAMES:
             self._used_vars[name] = 0
         
+        # Useful information about exported node trees
         self._node_trees: dict[bpy.types.NodeTree, NodeTreeInfo] = {}
 
+        # Number of objects we end up exporting
         self._num_objs: int = 0
 
         # Generate socket default, min, and max values
